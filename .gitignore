@@ -1,0 +1,53 @@
+.env
+./.idea
+/build
+# Flutter/Dart build & cache
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+.packages
+
+# iOS
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Pods/
+ios/Podfile.lock
+ios/.symlinks/
+ios/Runner.xcworkspace/
+
+# Android
+android/.gradle/
+android/captures/
+android/local.properties
+android/app/google-services.json
+android/key.properties
+android/app/release/
+android/app/debug/
+*.iml
+
+# macOS
+macos/Flutter/GeneratedPluginRegistrant.swift
+macos/Flutter/ephemeral/
+macos/Pods/
+
+# Windows
+windows/flutter/ephemeral/
+
+# Linux
+linux/flutter/ephemeral/
+
+# Web
+web/.dart_tool/
+
+# IntelliJ / VS Code
+.idea/
+.vscode/
+
+# Generated files
+pubspec.lock
+*.log
+
+# Environment / secrets
+*.env
