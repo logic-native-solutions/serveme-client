@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Returns a time-of-day emoji: morning, afternoon, evening, night.
+import 'home_screen.dart';
+import 'location_section.dart';
+
+/// Returns a time-of-day emoji.
 String _timeEmoji() {
   final h = DateTime.now().hour;
   if (h < 12) return '🌅';
@@ -9,23 +12,35 @@ String _timeEmoji() {
   return '🌙';
 }
 
-/// Returns a short weekday name for [d] (Mon..Sun).
+/// Returns a short weekday name (Mon..Sun).
 String _weekdayShort(DateTime d) {
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   return names[(d.weekday - 1).clamp(0, 6)];
 }
 
 
-/// Header that shows a prominent display name, and a subtle line with
-/// a time-of-day emoji, friendly greeting, and short date.
+/// Header with display name and a subtle line showing greeting + date.
 class GreetingHeader extends StatelessWidget {
-  const GreetingHeader({super.key, required this.name, required this.greet});
+  const GreetingHeader({
+    super.key,
+    required this.name,
+    required this.greet,
+    this.locationText,
+    this.onTapLocation,
+  });
 
   /// User's first name. If empty, a fallback "Welcome" is used.
   final String name;
 
   /// Friendly greeting text (e.g., "Good morning").
   final String greet;
+
+  /// Optional resolved location text. If null or empty, a "Set location" chip
+  /// is shown. If non-null, the value is displayed.
+  final String? locationText;
+
+  /// Optional tap handler for the location chip.
+  final VoidCallback? onTapLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -37,23 +52,12 @@ class GreetingHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Name as primary headline
-        Text(
-          displayName,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontFamily: 'AnonymousPro',
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        // Greeting + emoji + short date as a subtle line
         Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '$emoji $greet',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontFamily: 'AnonymousPro',
+                fontFamily: kBrandFont,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -70,10 +74,33 @@ class GreetingHeader extends StatelessWidget {
             Text(
               dateLine,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontFamily: 'AnonymousPro',
+                fontFamily: kBrandFont,
                 fontWeight: FontWeight.w400,
               ),
             ),
+          ],
+        ),
+        // Name as primary headline
+        Text(
+          displayName,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontFamily: kBrandFont,
+              fontWeight: FontWeight.w700,
+              fontSize: 28
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Greeting + emoji + short date + location chip
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LocationChip(
+              label: (locationText == null || locationText!.trim().isEmpty)
+                  ? 'Set location'
+                  : locationText!,
+              onTap: onTapLocation,
+            ),
+            const SizedBox(width: 10),
           ],
         ),
       ],

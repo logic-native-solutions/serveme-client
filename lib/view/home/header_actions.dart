@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'home_screen.dart';
+
 /// Compact actions shown on the right of the header: notifications and avatar.
 class HeaderActions extends StatelessWidget {
   const HeaderActions({super.key, required this.user});
@@ -19,6 +21,7 @@ class HeaderActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final avatarUrl = (user?['avatarUrl'] ?? '').toString().trim();
     final initials = _initials(user);
+    final cs = Theme.of(context).colorScheme;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -26,21 +29,21 @@ class HeaderActions extends StatelessWidget {
         IconButton(
           tooltip: 'Notifications',
           onPressed: () => Navigator.of(context).pushNamed('/notifications'),
-          icon: const Icon(Icons.notifications_outlined, size: 28),
+          icon: const Icon(Icons.notifications_outlined, size: 26),
         ),
         const SizedBox(width: 6),
         GestureDetector(
           onTap: () => Navigator.of(context).pushNamed('/profile'),
           child: CircleAvatar(
             radius: 18,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+            backgroundColor: cs.primaryContainer,
+            foregroundColor: cs.onPrimaryContainer,
             backgroundImage: avatarUrl.isEmpty ? null : NetworkImage(avatarUrl),
             child: avatarUrl.isEmpty
                 ? Text(
               initials,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontFamily: 'AnonymousPro',
+                fontFamily: kBrandFont,
                 fontWeight: FontWeight.w800,
               ),
             )
