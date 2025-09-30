@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 
-import 'package:client/model/register_results.dart';
+import 'package:client/model/register_results_model.dart';
 
 /// ---------------------------------------------------------------------------
 /// RegisterUserService
@@ -74,6 +74,7 @@ class RegisterUserService {
     required DateTime dateOfBirth,
     required String email,
     required String password,
+    required String role,
   }) {
     final payload = <String, dynamic>{
       'firstName': firstName.trim(),
@@ -84,6 +85,7 @@ class RegisterUserService {
       'dateOfBirth': dateOfBirth.toIso8601String(),
       'email': email.trim().toLowerCase(),
       'password': password.trim(),
+      'role': role.trim()
     };
     return jsonEncode(payload);
   }
@@ -110,6 +112,7 @@ class RegisterUserService {
     required DateTime dateOfBirth,
     required String email,
     required String password,
+    required String role,
   }) async {
     final url = Uri.parse('$baseUrl/api/auth/register');
     final body = _buildRequestBody(
@@ -121,6 +124,7 @@ class RegisterUserService {
       dateOfBirth: dateOfBirth,
       email: email,
       password: password,
+      role: role
     );
 
     try {

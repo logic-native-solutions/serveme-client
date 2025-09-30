@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
-import 'package:client/model/login_results.dart';
+import 'package:client/model/login_results_model.dart';
 
 /// ---------------------------------------------------------------------------
 /// LoginUserService

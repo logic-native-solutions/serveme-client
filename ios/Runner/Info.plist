@@ -57,5 +57,13 @@
         </array>
       </dict>
     </array>
+
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app needs access to your photo library to let you send images in chat.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>This app needs access to your camera to take photos for chat.</string>
+
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This app uses the microphone to record voice notes.</string>
 </dict>
 </plist>

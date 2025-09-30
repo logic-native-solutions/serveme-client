@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:client/auth/api_client.dart';
 import 'package:client/auth/auth_store.dart';
 import 'package:client/view/otp/section_card.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
-import 'package:client/static/load_env.dart';
+import 'package:dio/dio.dart';
 
 /// ---------------------------------------------------------------------------
 /// OTP Screen & Service
@@ -28,7 +28,7 @@ enum Channel { email, sms }
 
 extension ChannelX on Channel {
   String get label => this == Channel.email ? 'EMAIL' : 'SMS';
-  String get pretty => this == Channel.email ? 'Email' : 'SMS';
+  String get pretty => this == Channel.email ? 'EMAIL' : 'SMS';
 }
 
 class VerifyResponse {
@@ -57,6 +57,7 @@ class VerifyResponse {
   }
 }
 
+
 /// Masks an email like `johndoe@example.com` → `jo***@example.com`.
 String maskEmail(String email) {
   final parts = email.split('@');
@@ -79,98 +80,87 @@ String maskPhone(String phone) {
 // ────────────────────────────────────────────────────────────────────────────
 
 class _OtpService {
-  _OtpService(this.baseUrl, [http.Client? client]) : _client = client ?? http.Client();
+  _OtpService();
 
-  final String baseUrl;
-  final http.Client _client;
-
-  static const _jsonHeaders = {'Content-Type': 'application/json'};
+  static const _json = {'Content-Type': 'application/json'};
   static const _timeout = Duration(seconds: 15);
 
-  Uri _u(String path) => Env.apiUri(path);
+  Dio get _dio => ApiClient.I.dio;
 
-  /// Sends an OTP to the given [destination] for the [channel].
   Future<void> sendOtp({
     required String sessionId,
     required Channel channel,
     required String destination,
   }) async {
-    final res = await _client
-        .post(
-          _u('/api/auth/otp/send'),
-          headers: _jsonHeaders,
-          body: jsonEncode({
-            'sessionId': sessionId,
-            'channel': channel.label, // "EMAIL" | "SMS"
-            'destination': destination, // email or phone
-          }),
-        )
-        .timeout(_timeout);
+    final res = await _dio.post(
+      '/api/auth/otp/send',
+      data: {
+        'sessionId': sessionId,
+        'channel': channel.label, // "EMAIL" | "SMS"
+        'destination': destination, // email or phone
+      },
+      options: Options(headers: _json),
+    ).timeout(_timeout);
 
     if (res.statusCode != 200) {
-      throw Exception('Failed to send ${channel.pretty} OTP (HTTP ${res.statusCode})');
+      throw Exception(
+          'Failed to send ${channel.pretty} OTP (HTTP ${res.statusCode})');
     }
   }
 
-  /// Verifies a code for [channel].
   Future<VerifyResponse> verify({
     required String sessionId,
     required Channel channel,
     required String code,
   }) async {
-    final res = await _client
-        .post(
-          _u('/api/auth/otp/verify'),
-          headers: _jsonHeaders,
-          body: jsonEncode({
-            'sessionId': sessionId,
-            'channel': channel.label,
-            'code': code,
-          }),
-        )
-        .timeout(_timeout);
+    final res = await _dio.post(
+      '/api/auth/otp/verify',
+      data: {
+        'sessionId': sessionId,
+        'channel': channel.label,
+        'code': code,
+      },
+      options: Options(headers: _json),
+    ).timeout(_timeout);
 
     if (res.statusCode != 200) {
       throw Exception('Server error: ${res.statusCode}');
     }
-    return VerifyResponse.fromJson(res.body);
+
+    // Dio already gives Map; for compatibility with your parser:
+    return VerifyResponse.fromJson(jsonEncode(res.data));
   }
 
-  /// Updates the destination value (email/phone) for the given [channel].
   Future<bool> updateDestination({
     required String sessionId,
     required Channel channel,
     required String value,
   }) async {
-    final res = await _client
-        .post(
-          _u('/api/auth/otp/update-destination'),
-          headers: _jsonHeaders,
-          body: jsonEncode({
-            'sessionId': sessionId,
-            'channel': channel.label,
-            'destination': value,
-          }),
-        )
-        .timeout(_timeout);
+    final res = await _dio.post(
+      '/api/auth/otp/update-destination',
+      data: {
+        'sessionId': sessionId,
+        'channel': channel.label,
+        'destination': value,
+      },
+      options: Options(headers: _json),
+    ).timeout(_timeout);
 
     return res.statusCode == 200;
   }
 
-  /// Finalizes the user after verification and returns a JSON map.
+  /// IMPORTANT: use Dio here so the Set-Cookie refresh token is stored
   Future<Map<String, dynamic>> saveUser({required String status}) async {
-    final res = await _client
-        .post(
-          _u('/api/auth/save-user'),
-          headers: _jsonHeaders,
-          body: jsonEncode({'status': status}),
-        )
-        .timeout(_timeout);
+    final res = await _dio.post(
+      '/api/auth/save-user',
+      data: {'status': status},
+      options: Options(headers: _json),
+    ).timeout(_timeout);
 
     if (res.statusCode != 201) {
       throw Exception('Unexpected status: ${res.statusCode}');
     }
-    final data = jsonDecode(res.body);
+    final data = res.data;
     if (data is! Map<String, dynamic>) throw const FormatException('Bad body');
     return data;
   }
@@ -233,7 +223,7 @@ class _OtpScreenState extends State<OtpScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _email = widget.email;
     _phone = widget.phone;
-    _svc = _OtpService(widget.backendBaseUrl);
+    _svc = _OtpService();
 
     // When SMS field gets focus, ensure it’s visible
     _smsFocus.addListener(() {
@@ -277,6 +267,7 @@ class _OtpScreenState extends State<OtpScreen> with WidgetsBindingObserver {
         channel: channel,
         destination: destination,
       );
+
       _startCooldown(channel, 30);
       _toast('${channel.pretty} code sent');
     } on TimeoutException {
@@ -343,7 +334,7 @@ class _OtpScreenState extends State<OtpScreen> with WidgetsBindingObserver {
         if (smsOk && (resp.status == 'PENDING' || resp.status == 'VERIFIED')) {
           setState(() {
             _smsVerified = true;
-            _serverStatus = resp.status;
+            _serverStatus = 'VERIFIED';
           });
           _toast('SMS verified successfully');
           return;
@@ -433,12 +424,13 @@ class _OtpScreenState extends State<OtpScreen> with WidgetsBindingObserver {
     // Called when both email & sms verified
     try {
       final data = await _svc.saveUser(status: _serverStatus ?? 'PENDING');
-      final token = (data['body'] as Map?)?['token'] as String?;
-      if (token == null) {
+      final token = (data['token'] as String);
+      if (token.isEmpty) {
         _error('Token missing in response');
         return;
       }
       await AuthStore.saveToken(token);
+
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     } catch (_) {

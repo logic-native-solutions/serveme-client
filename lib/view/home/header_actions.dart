@@ -1,17 +1,18 @@
+import 'package:client/model/user_model.dart';
 import 'package:flutter/material.dart';
 
-import 'home_screen.dart';
+import 'home_screen.dart'; // Assuming kBrandFont is still here, or move it
 
 /// Compact actions shown on the right of the header: notifications and avatar.
 class HeaderActions extends StatelessWidget {
   const HeaderActions({super.key, required this.user});
 
-  /// The current user map (expects keys like firstName, lastName, avatarUrl).
-  final Map<String, dynamic>? user;
+  /// The current user object.
+  final UserModel user;
 
-  String _initials(Map<String, dynamic>? u) {
-    final f = (u?['firstName'] ?? '').toString().trim();
-    final l = (u?['lastName'] ?? '').toString().trim();
+  String _initials(UserModel u) { // <--- CHANGE PARAMETER TYPE TO User
+    final f = u.firstName.trim();
+    final l = u.lastName.trim();
     if (f.isEmpty && l.isEmpty) return 'U';
     if (f.isNotEmpty && l.isNotEmpty) return '${f[0]}${l[0]}'.toUpperCase();
     return (f.isNotEmpty ? f[0] : l[0]).toUpperCase();
@@ -19,7 +20,14 @@ class HeaderActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl = (user?['avatarUrl'] ?? '').toString().trim();
+    // Access properties directly from the User object
+    // Assuming 'avatarUrl' is a field in your User model.
+    // If not, you might need to add it or adjust how you get it.
+    final String avatarUrl = user.avatarUrl ?? ''; // <--- ACCESS FROM USER OBJECT
+    // Add avatarUrl to your User model if it doesn't exist:
+    // final String? avatarUrl;
+    // And in fromJson: avatarUrl: json['avatarUrl'],
+
     final initials = _initials(user);
     final cs = Theme.of(context).colorScheme;
 
@@ -38,16 +46,16 @@ class HeaderActions extends StatelessWidget {
             radius: 18,
             backgroundColor: cs.primaryContainer,
             foregroundColor: cs.onPrimaryContainer,
-            backgroundImage: avatarUrl.isEmpty ? null : NetworkImage(avatarUrl),
-            child: avatarUrl.isEmpty
-                ? Text(
+            backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+            child: avatarUrl.isNotEmpty
+                ? null
+                : Text(
               initials,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 fontFamily: kBrandFont,
                 fontWeight: FontWeight.w800,
               ),
-            )
-                : null,
+            ),
           ),
         ),
       ],

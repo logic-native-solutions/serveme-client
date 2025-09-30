@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../model/provider_model.dart';
+
+
 
 class ProviderSection extends StatefulWidget {
   const ProviderSection({super.key});
@@ -8,28 +11,8 @@ class ProviderSection extends StatefulWidget {
   State<ProviderSection> createState() => _ProviderSectionState();
 }
 
-class ProviderInfo {
-  final String name;
-  final String username;
-  final String category;
-  final double rating;
-  final int reviews;
-  final double ratePerHour;
-  final String? imageUrl;
-
-  const ProviderInfo({
-    required this.name,
-    required this.username,
-    required this.category,
-    required this.rating,
-    required this.reviews,
-    required this.ratePerHour,
-    this.imageUrl,
-  });
-}
-
 class ProviderCard extends StatelessWidget {
-  final ProviderInfo p;
+  final ProviderInfoModel p;
   const ProviderCard({super.key, required this.p});
 
   @override
@@ -76,7 +59,7 @@ class ProviderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '@${p.username} • ${p.category}',
+                  p.category,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall,
@@ -113,8 +96,8 @@ class ProviderCard extends StatelessWidget {
 }
 
 class _ProviderSectionState extends State<ProviderSection> {
-  final List<ProviderInfo> _providers = const [
-    ProviderInfo(
+  final List<ProviderInfoModel> _providers = [
+    ProviderInfoModel(
       name: 'Lerato M.',
       username: 'lerato_m',
       category: 'Home Cleaning',
@@ -123,7 +106,7 @@ class _ProviderSectionState extends State<ProviderSection> {
       ratePerHour: 180,
       imageUrl: 'https://picsum.photos/seed/cleaner/200/200',
     ),
-    ProviderInfo(
+    ProviderInfoModel(
       name: 'Sipho K.',
       username: 'sipho.k',
       category: 'Electrician',
@@ -132,7 +115,7 @@ class _ProviderSectionState extends State<ProviderSection> {
       ratePerHour: 250,
       imageUrl: 'https://picsum.photos/seed/electric/200/200',
     ),
-    ProviderInfo(
+    ProviderInfoModel(
       name: 'Anika R.',
       username: 'anika_r',
       category: 'Plumbing',
@@ -141,7 +124,7 @@ class _ProviderSectionState extends State<ProviderSection> {
       ratePerHour: 300,
       imageUrl: 'https://picsum.photos/seed/plumber/200/200',
     ),
-    ProviderInfo(
+    ProviderInfoModel(
       name: 'Thabo N.',
       username: 'thabo.n',
       category: 'Gardening',

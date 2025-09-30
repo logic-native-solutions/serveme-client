@@ -5,9 +5,10 @@ import 'package:client/custom/loader.dart';
 import 'package:client/global/greet_user.dart';
 import 'package:client/view/home/provider_section.dart';
 import 'package:client/view/home/search_service.dart';
-import 'package:client/view/home/serive_section.dart';
+import 'package:client/view/home/service_section.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:client/model/user_model.dart';
 
 import 'advert_section.dart';
 import 'current_user.dart';
@@ -61,7 +62,6 @@ class _HomeScreenBody extends StatefulWidget {
 }
 
 class _HomeScreenBodyState extends State<_HomeScreenBody> {
-  /// Human-friendly greeting based on local time (e.g., "Good evening").
   final String _greet = greetingMessage();
 
   @override
@@ -70,73 +70,44 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     _bootstrap();
   }
 
-  // -- Session Bootstrap ------------------------------------------------------
-
-  /// Performs initial data load and handles auth/session errors.
   void _bootstrap() {
     unawaited(() async {
-      try {
-        await CurrentUserStore.I.load();
-      } on DioException catch (e) {
-        final code = e.response?.statusCode;
-        if (code == 401) {
-          final recovered = await _retryOnceOn401();
-          if (recovered) return;
+      await CurrentUserStore.I.load();
+      final store = CurrentUserStore.I;
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Session expired. Please log in again.')),
-            );
-          }
-
-          // Hard logout only if recovery failed
-          await ApiClient.logout();
-          CurrentUserStore.I.clear();
-          if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
-          }
-          return;
-        }
+      if (mounted && store.user == null && store.error == 'Session expired') {
+        // Only now do a clean logout/navigation
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Session expired. Please log in again.')),
+        );
+        await ApiClient.logout();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to load user: ${e.message}')),
-          );
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Unexpected error: $e')),
-          );
-        }
+      } else if (mounted && store.user == null && store.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(store.error!)),
+        );
       }
     }());
   }
 
-  /// Try one forced reload after a brief delay in case the token wasn't
-  /// attached yet (race condition right after login). Returns true if
-  /// recovery succeeded.
-  Future<bool> _retryOnceOn401() async {
+  Future<void> _handleRefresh() async {
     try {
-      await Future.delayed(const Duration(milliseconds: 250));
-      final u = await CurrentUserStore.I.load(force: true);
-      if (u != null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Session restored.')),
-          );
-        }
-        return true;
+      await CurrentUserStore.I.load(force: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Refreshed')),
+        );
       }
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 401) {
-        return false; // still unauthorized
+    } on DioException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Refresh failed')),
+        );
       }
-      rethrow; // surface other errors
     }
-    return false;
   }
-
-  // -- Build ------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -150,15 +121,10 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
               animation: CurrentUserStore.I,
               builder: (context, _) {
                 final store = CurrentUserStore.I;
-                final user = store.user;
-                final isLoading = store.isLoading;
+                final UserModel? user = store.user;
+                final bool isLoading = store.isLoading;
 
-                final name = (user?['firstName'] ?? '').toString().trim();
-                final city = (user?['city'] ?? user?['address']?['city'] ?? user?['location'] ?? '').toString().trim();
-                final country = (user?['country'] ?? user?['address']?['country'] ?? '').toString().trim();
-                final locationText = [city, country].where((s) => s.isNotEmpty).join(', ');
-
-                if (isLoading || user == null) {
+                if (isLoading && user == null) { // Adjusted condition for initial load
                   return Center(
                     child: AnimatedSwitcher(
                       duration: kHomeAnimDuration,
@@ -171,6 +137,18 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                   );
                 }
 
+                if (user == null && !isLoading) {
+                  return Center(
+                    child: Text(store.error ?? 'Failed to load user data.'),
+                  );
+                }
+
+
+                // If user is not null, we can safely access its properties
+                final String name = user?.firstName.trim() ?? '';
+                final String locationText = user?.locationText ?? '';
+
+
                 return AnimatedSwitcher(
                   duration: kHomeAnimDuration,
                   layoutBuilder: (currentChild, previousChildren) => Stack(
@@ -180,36 +158,41 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                       if (currentChild != null) currentChild,
                     ],
                   ),
-                  child: SingleChildScrollView(
-                    key: const ValueKey('content'),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: GreetingHeader(
-                                name: name,
-                                greet: _greet,
-                                locationText: locationText,
-                                onTapLocation: () => Navigator.of(context).pushNamed('/location-picker'),
+                  child: RefreshIndicator(
+                    onRefresh: _handleRefresh,
+                    child: SingleChildScrollView(
+                      key: const ValueKey('content'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: GreetingHeader(
+                                  name: name,
+                                  greet: _greet,
+                                  locationText: locationText,
+                                  onTapLocation: () => Navigator.of(context).pushNamed('/location-picker'),
+                                ),
                               ),
-                            ),
-                            HeaderActions(user: user),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        const Row(
-                          children: [Flexible(child: SearchCategory())],
-                        ),
-                        const SizedBox(height: 15),
-                        const AdvertSection(),
-                        const SizedBox(height: 16),
-                        const ServicesSection(),
-                        const SizedBox(height: 16),
-                        const ProviderSection(),
-                      ],
+                              // Pass the User object to HeaderActions if it needs it
+                              if (user != null) HeaderActions(user: user),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Row(
+                            children: [Flexible(child: SearchCategory())],
+                          ),
+                          const SizedBox(height: 15),
+                          const AdvertSection(),
+                          const SizedBox(height: 16),
+                          const ServicesSection(),
+                          const SizedBox(height: 16),
+                          const ProviderSection(),
+                        ],
+                      ),
                     ),
                   ),
                 );

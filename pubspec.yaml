@@ -52,6 +52,9 @@ dependencies:
   country_picker: ^2.0.27
   shared_preferences: ^2.5.3
   app_links: ^6.4.1
+  image_picker: ^1.2.0
+  record: ^6.1.1
+  audioplayers: ^6.5.1
 
 dev_dependencies:
   flutter_test:

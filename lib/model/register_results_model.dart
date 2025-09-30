@@ -8,7 +8,7 @@
 /// • [sessionId] – session/token used for OTP verification.
 /// • [message] – optional global banner message.
 /// • Field-level errors: [firstName], [lastName], [phoneNumber], [gender],
-///   [idNumber], [dateOfBirth], [email], [password].
+///   [role], [idNumber], [dateOfBirth], [email], [password].
 /// ---------------------------------------------------------------------------
 class RegisterResultModel {
   // ---------------------------------------------------------------------------
@@ -36,6 +36,9 @@ class RegisterResultModel {
   /// Validation error for gender.
   final String? gender;
 
+  /// Validation error for role.
+  final String? role;
+
   /// Validation error for ID number.
   final String? idNumber;
 
@@ -61,6 +64,7 @@ class RegisterResultModel {
     this.lastName,
     this.phoneNumber,
     this.gender,
+    this.role,
     this.idNumber,
     this.dateOfBirth,
     this.email,
@@ -84,6 +88,7 @@ class RegisterResultModel {
         lastName: b?['lastName'] as String?,
         phoneNumber: b?['phoneNumber'] as String?,
         gender: b?['gender'] as String?,
+        role: b?['role'] as String?,
         idNumber: b?['idNumber'] as String?,
         dateOfBirth: b?['dateOfBirth'] as String?,
         email: b?['email'] as String?,

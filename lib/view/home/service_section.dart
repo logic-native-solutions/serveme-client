@@ -30,7 +30,9 @@ class ServicesSection extends StatelessWidget {
                 )
             ),
             TextButton(
-                onPressed: () => {},
+                onPressed: () => {
+                  Navigator.pushNamed(context, '/all-services')
+                },
                 child: Text(
                   'View all',
                   style: TextStyle(
@@ -45,13 +47,13 @@ class ServicesSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         GridView.count(
-          crossAxisCount: 2,
+          crossAxisCount: 3,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           childAspectRatio: 0.85,
-          children: List.generate(4, (index) {
+          children: List.generate(6, (index) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

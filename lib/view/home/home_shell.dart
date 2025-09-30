@@ -1,7 +1,7 @@
 import 'package:client/view/home/home_screen.dart';
 import 'package:client/view/message/message_screen.dart';
 import 'package:client/view/profile/profile_screen.dart';
-import 'package:client/view/search/search_screen.dart';
+import 'package:client/view/booking/booking_screen.dart';
 import 'package:client/view/wallet/wallet_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -40,7 +40,7 @@ class _HomeShellState extends State<HomeShell> {
   final List<Widget> _pages = const <Widget>[
     HomeScreen(),
     MessageScreen(),
-    SearchScreen(),
+    BookingScreen(),
     WalletScreen(),
     ProfileScreen()
   ];
@@ -119,12 +119,12 @@ class _HomeShellState extends State<HomeShell> {
                 ),
                 NavigationDestination(
                   icon: _AnimatedNavIcon(
-                    icon: Icons.search,
-                    selectedIcon: Icons.search_rounded,
+                    icon: Icons.calendar_today_outlined,
+                    selectedIcon: Icons.calendar_month,
                     selected: _index == 2,
                     duration: _kIconAnim,
                   ),
-                  label: 'Search',
+                  label: 'Bookings',
                 ),
                 NavigationDestination(
                   icon: _AnimatedNavIcon(

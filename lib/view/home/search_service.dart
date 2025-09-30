@@ -88,7 +88,7 @@ class _SearchCategoryState extends State<SearchCategory> {
         },
         onSelected: (value) {
           FocusScope.of(context).unfocus();
-          // TODO: trigger search or navigation with `value`
+          // TODO: trigger booking or navigation with `value`
         },
       ),
     );
