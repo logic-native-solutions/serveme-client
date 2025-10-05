@@ -1,3 +1,15 @@
+def localProps = new Properties()
+def lpFile = rootProject.file("local.properties")
+if (lpFile.exists()) {
+    localProps.load(new FileInputStream(lpFile))
+}
+def mapsApiKey = localProps.getProperty("MAPS_API_KEY", "")
+
+android {
+    defaultConfig {
+        manifestPlaceholders += [ MAPS_API_KEY: mapsApiKey ]
+    }
+}
 plugins {
     id("com.android.application")
     id("kotlin-android")

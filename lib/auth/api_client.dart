@@ -13,6 +13,16 @@ class _Endpoints {
   static const String logout  = '/api/auth/logout';
 }
 
+// Returns a path that won't double-include `/api` if baseUrl already ends with `/api`
+String _normalizeApiPath(Dio dio, String path) {
+  final base = dio.options.baseUrl;
+  final hasApiInBase = base.endsWith('/api') || base.contains('/api/');
+  if (hasApiInBase && path.startsWith('/api/')) {
+    return path.replaceFirst('/api/', '/');
+  }
+  return path;
+}
+
 class ApiClient {
   ApiClient._(this.dio, this.cookieJar);
 
@@ -62,11 +72,33 @@ class ApiClient {
     _sessionCancelToken = CancelToken();
   }
 
+  /// Print current auth diagnostics: baseUrl and cookies for that origin.
+  static Future<void> debugPrintAuthState() async {
+    final i = _instance;
+    if (i == null) {
+      // ignore: avoid_print
+      print('[ApiClient] Not initialized.');
+      return;
+    }
+    final base = i.dio.options.baseUrl;
+    try {
+      final uri = Uri.parse(base);
+      // Ensure we always query cookies for the origin (no path)
+      final origin = Uri(scheme: uri.scheme, host: uri.host, port: uri.port, path: '/');
+      final cookies = await i.cookieJar.loadForRequest(origin);
+      // ignore: avoid_print
+      print('[ApiClient] baseUrl=$base origin=$origin cookies=$cookies');
+    } catch (e) {
+      // ignore: avoid_print
+      print('[ApiClient] Failed to print auth state: $e');
+    }
+  }
+
   static Future<void> logout({bool callServer = true}) async {
     if (callServer && _instance != null) {
       try {
         await _instance!.dio.post(
-          _Endpoints.logout,
+          _normalizeApiPath(_instance!.dio, _Endpoints.logout),
           options: Options(headers: {'Authorization': null}),
         );
       } catch (_) {}
@@ -88,6 +120,8 @@ class _AuthInterceptor extends Interceptor {
 
   final Dio _dio;
 
+  String get _refreshPath => _normalizeApiPath(_dio, _Endpoints.refresh);
+
   bool _isRefreshing = false;
   final List<_QueuedRequest> _queue = [];
 
@@ -108,9 +142,10 @@ class _AuthInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final status = err.response?.statusCode ?? 0;
     final path = err.requestOptions.path;
+    final isRefreshCall = path.endsWith(_refreshPath);
 
     // Not a 401, or it's the refresh call itself → pass through
-    if (status != 401 || path.endsWith(_Endpoints.refresh) || err.requestOptions.extra[_kSkipRetryKey] == true) {
+    if (status != 401 || isRefreshCall || err.requestOptions.extra[_kSkipRetryKey] == true) {
       handler.next(err);
       return;
     }
@@ -122,9 +157,21 @@ class _AuthInterceptor extends Interceptor {
     if (!_isRefreshing) {
       _isRefreshing = true;
       try {
+        // DEBUG: print cookie state for the base origin to ensure refresh cookie will be sent
+        try {
+          final base = _dio.options.baseUrl;
+          final uri = Uri.parse(base);
+          final origin = Uri(scheme: uri.scheme, host: uri.host, port: uri.port, path: '/');
+          // We need access to the jar via ApiClient singleton
+          final jar = ApiClient.I.cookieJar;
+          final cookies = await jar.loadForRequest(origin);
+          // ignore: avoid_print
+          print('[AuthInterceptor] Preparing refresh: base=$base origin=$origin cookies=$cookies');
+        } catch (_) {}
+
         // IMPORTANT: do not send Authorization header on refresh
         final refreshResp = await _dio.post(
-          _Endpoints.refresh,
+          _refreshPath,
           options: Options(
             headers: {'Authorization': null},
             // prevent this request from being intercepted recursively

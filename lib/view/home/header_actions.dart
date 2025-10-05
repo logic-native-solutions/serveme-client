@@ -2,6 +2,8 @@ import 'package:client/model/user_model.dart';
 import 'package:flutter/material.dart';
 
 import 'home_screen.dart'; // Assuming kBrandFont is still here, or move it
+import '../profile/profile_screen.dart';
+import 'home_screen.dart';
 
 /// Compact actions shown on the right of the header: notifications and avatar.
 class HeaderActions extends StatelessWidget {
@@ -41,7 +43,10 @@ class HeaderActions extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         GestureDetector(
-          onTap: () => Navigator.of(context).pushNamed('/profile'),
+          onTap: () =>
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ProfileScreen())),
           child: CircleAvatar(
             radius: 18,
             backgroundColor: cs.primaryContainer,

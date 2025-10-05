@@ -6,6 +6,7 @@ import 'package:client/global/greet_user.dart';
 import 'package:client/view/home/provider_section.dart';
 import 'package:client/view/home/search_service.dart';
 import 'package:client/view/home/service_section.dart';
+import 'package:client/view/profile/address_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:client/model/user_model.dart';
@@ -63,6 +64,7 @@ class _HomeScreenBody extends StatefulWidget {
 
 class _HomeScreenBodyState extends State<_HomeScreenBody> {
   final String _greet = greetingMessage();
+  String? _selectedLocation; // set when user picks an address from AddressScreen
 
   @override
   void initState() {
@@ -124,7 +126,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                 final UserModel? user = store.user;
                 final bool isLoading = store.isLoading;
 
-                if (isLoading && user == null) { // Adjusted condition for initial load
+                // Initial loading: show loader when we don't have user yet
+                if (isLoading && user == null) {
                   return Center(
                     child: AnimatedSwitcher(
                       duration: kHomeAnimDuration,
@@ -137,17 +140,23 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                   );
                 }
 
-                if (user == null && !isLoading) {
+                // Finished loading but no user: show error
+                if (!isLoading && user == null) {
                   return Center(
                     child: Text(store.error ?? 'Failed to load user data.'),
                   );
                 }
 
+                // We have a user object: safely read typed fields
+                final String name = (user?.firstName ?? '').trim();
 
-                // If user is not null, we can safely access its properties
-                final String name = user?.firstName.trim() ?? '';
-                final String locationText = user?.locationText ?? '';
-
+                // Build a fallback location from available fields
+                final String city = (user?.city ?? '').trim();
+                final String country = (user?.country ?? '').trim();
+                final String derivedLocation = [city, country].where((s) => s.isNotEmpty).join(', ');
+                // Prefer a user-chosen address from AddressScreen if present
+                final String overridden = (_selectedLocation ?? '').trim();
+                final String locationText = overridden.isNotEmpty ? overridden : derivedLocation;
 
                 return AnimatedSwitcher(
                   duration: kHomeAnimDuration,
@@ -174,10 +183,9 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                                   name: name,
                                   greet: _greet,
                                   locationText: locationText,
-                                  onTapLocation: () => Navigator.of(context).pushNamed('/location-picker'),
+                                  onPressed: () => Navigator.of(context).pushNamed('/location-picker'),
                                 ),
                               ),
-                              // Pass the User object to HeaderActions if it needs it
                               if (user != null) HeaderActions(user: user),
                             ],
                           ),

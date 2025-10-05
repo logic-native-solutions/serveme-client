@@ -18,6 +18,17 @@ String _weekdayShort(DateTime d) {
   return names[(d.weekday - 1).clamp(0, 6)];
 }
 
+String _shortenLocation(String? s) {
+  if (s == null) return '';
+  final text = s.trim();
+  if (text.isEmpty) return '';
+  // Prefer just street and city when comma-separated
+  final parts = text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+  final preferred = parts.length >= 2 ? '${parts[0]}, ${parts[1]}' : text;
+  // Final safety: ellipsize if still too long
+  return preferred.length > 36 ? preferred.substring(0, 35) + '…' : preferred;
+}
+
 
 /// Header with display name and a subtle line showing greeting + date.
 class GreetingHeader extends StatelessWidget {
@@ -26,7 +37,7 @@ class GreetingHeader extends StatelessWidget {
     required this.name,
     required this.greet,
     this.locationText,
-    this.onTapLocation,
+    this.onPressed,
   });
 
   /// User's first name. If empty, a fallback "Welcome" is used.
@@ -40,7 +51,7 @@ class GreetingHeader extends StatelessWidget {
   final String? locationText;
 
   /// Optional tap handler for the location chip.
-  final VoidCallback? onTapLocation;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -94,11 +105,13 @@ class GreetingHeader extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            LocationChip(
-              label: (locationText == null || locationText!.trim().isEmpty)
-                  ? 'Set location'
-                  : locationText!,
-              onTap: onTapLocation,
+            Flexible(
+              child: LocationChip(
+                label: (locationText == null || locationText!.trim().isEmpty)
+                    ? 'Set location'
+                    : _shortenLocation(locationText),
+                onTap: onPressed,
+              ),
             ),
             const SizedBox(width: 10),
           ],

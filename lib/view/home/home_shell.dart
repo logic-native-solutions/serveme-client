@@ -53,6 +53,7 @@ class _HomeShellState extends State<HomeShell> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       body: SafeArea(
         child: NotificationListener<ScrollNotification>(
           onNotification: (n) {

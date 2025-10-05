@@ -11,6 +11,15 @@ import 'package:client/view/otp/otp.dart';
 import 'package:client/view/profile/profile_screen.dart';
 import 'package:client/view/booking/booking_screen.dart';
 import 'package:client/view/wallet/wallet_screen.dart';
+import 'package:client/view/provider/dashboard_screen.dart';
+import 'package:client/view/provider/analytics_screen.dart';
+import 'package:client/view/provider/availability_screen.dart';
+import 'package:client/view/provider/payouts_screen.dart';
+import 'package:client/view/provider/withdraw_screen.dart';
+import 'package:client/view/provider/manage_payment_methods_screen.dart';
+import 'package:client/view/provider/jobs_screen.dart';
+import 'package:client/view/provider/wallet_screen.dart';
+import 'package:client/view/welcome/role_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:client/view/login/login.dart';
@@ -55,6 +64,8 @@ Future<void> main() async {
 ///  • Theming from [themed()]
 ///  • Top-level routes and route generators
 /// ---------------------------------------------------------------------------
+
+
 class App extends StatefulWidget {
   const App({super.key});
 
@@ -97,9 +108,21 @@ class _AppState extends State<App> {
         '/message': (_) => const MessageScreen(),
         '/booking': (_) => const BookingScreen(),
         '/wallet':(_) => const WalletScreen(),
-        '/profile': (_) => const ProfileScreen(),
+        // '/profile': (_) => const ProfileScreen(),
         '/all-services': (_) => const AllServicesScreen(),
-        '/reset': (_) => ResetNewPasswordScreen(resetSession: session)
+        '/reset': (_) => ResetNewPasswordScreen(resetSession: session),
+        // Dev-only role selector for previewing dashboards
+        '/choose-dashboard': (_) => const RoleSelectorScreen(),
+        // Provider routes
+        '/provider/dashboard': (_) => const ProviderDashboardScreen(),
+        '/provider/analytics': (_) => const ProviderAnalyticsScreen(),
+        '/provider/availability': (_) => const ProviderAvailabilityScreen(),
+        '/provider/payouts': (_) => const ProviderPayoutsScreen(),
+        '/provider/payouts/withdraw': (_) => const WithdrawFundsScreen(),
+        '/provider/payouts/methods': (_) => const ManagePaymentMethodsScreen(),
+        '/provider/payouts/methods/add': (_) => const AddPaymentMethodScreen(),
+        '/provider/jobs': (_) => const ProviderJobsScreen(),
+        '/provider/wallet': (_) => const ProviderWalletScreen(),
       },
       onGenerateRoute: (settings) {
         switch(settings.name) {

@@ -30,9 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.5.0
+  http: ^1.2.2
   hexcolor: ^3.0.1
   dio: ^5.9.0
+  google_maps_flutter: ^2.9.0
   cookie_jar: ^4.0.8
   dio_cookie_manager: ^3.3.0
   flutter_secure_storage: ^9.2.4
