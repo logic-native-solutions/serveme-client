@@ -3,6 +3,7 @@ library;
 import 'dart:async';
 
 import 'package:client/auth/auth_store.dart';
+import 'package:client/auth/role_store.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -22,6 +23,11 @@ String _normalizeApiPath(Dio dio, String path) {
   }
   return path;
 }
+
+// Public wrapper so other libraries can safely normalize API paths without
+// accessing a library-private symbol. This keeps existing internal calls
+// unchanged while exposing the utility for API client files.
+String normalizeApiPath(Dio dio, String path) => _normalizeApiPath(dio, path);
 
 class ApiClient {
   ApiClient._(this.dio, this.cookieJar);
@@ -104,7 +110,14 @@ class ApiClient {
       } catch (_) {}
     }
 
+    // Clear all local auth state to avoid cross-account leakage:
+    // - Access token in secure storage
+    // - In-memory cached role
+    // - Cookies (including refresh tokens)
     await AuthStore.clear();
+    try {
+      RoleStore.clear();
+    } catch (_) {}
 
     final i = _instance;
     if (i != null) {

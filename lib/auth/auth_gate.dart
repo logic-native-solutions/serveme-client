@@ -5,6 +5,12 @@ import 'package:client/custom/loader.dart';
 import 'package:client/view/home/home_shell.dart';
 import 'package:client/view/welcome/welcome.dart';
 import 'package:flutter/material.dart';
+// Role resolution dependencies must be imported at the top to satisfy Dart's
+// directive ordering rules (imports before any declarations).
+import 'package:client/auth/api_client.dart';
+import 'package:client/auth/role_router.dart';
+import 'package:client/view/provider/dashboard_screen.dart';
+import 'package:dio/dio.dart';
 
 /// ---------------------------------------------------------------------------
 /// AuthGate
@@ -79,7 +85,7 @@ class _AuthGateState extends State<AuthGate> {
           case ConnectionState.done:
             if (snapshot.hasError) return _buildError();
             final loggedIn = snapshot.data ?? false;
-            return loggedIn ? const HomeShell() : const WelcomeScreen();
+            return loggedIn ? const _RoleResolveScreen() : const WelcomeScreen();
         }
       },
     );
@@ -119,4 +125,110 @@ class _AuthGateState extends State<AuthGate> {
       ),
     );
   }
+}
+
+/// ----------------------------------------------------------------------------
+/// _RoleResolveScreen
+/// ----------------------------------------------------------------------------
+/// When a user is logged in, we resolve their effective role from the backend
+/// and then render the correct dashboard. We keep this local to AuthGate to
+/// avoid scattering boot-time logic across the app.
+
+class _RoleResolveScreen extends StatefulWidget {
+  const _RoleResolveScreen();
+
+  @override
+  State<_RoleResolveScreen> createState() => _RoleResolveScreenState();
+}
+
+class _RoleResolveScreenState extends State<_RoleResolveScreen> {
+  late Future<_ResolveResult> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _resolve();
+  }
+
+  Future<_ResolveResult> _resolve() async {
+    try {
+      final roleRouter = RoleRouter(ApiClient.I.dio);
+      final res = await roleRouter.fetchRedirect();
+      return _ResolveResult.ok(role: res['role']!, target: res['target']!);
+    } on DioException catch (e) {
+      final status = e.response?.statusCode ?? 0;
+      if (status == 401) {
+        // Unauthenticated → clear token and go to login screen.
+        await ApiClient.logout(callServer: false);
+        return const _ResolveResult.unauthenticated();
+      }
+      // For 403 or network issues, present a retry path.
+      return _ResolveResult.error(message: 'Failed to resolve dashboard (${e.message}).');
+    } catch (e) {
+      return _ResolveResult.error(message: 'Unexpected error: $e');
+    }
+  }
+
+  void _retry() {
+    setState(() {
+      _future = _resolve();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<_ResolveResult>(
+      future: _future,
+      builder: (context, snap) {
+        if (!snap.hasData || snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final data = snap.data!;
+        if (data.isUnauthenticated) {
+          // Go to login/welcome
+          return const WelcomeScreen();
+        }
+        if (data.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(data.message ?? 'Could not resolve dashboard'),
+                  const SizedBox(height: 8),
+                  FilledButton(onPressed: _retry, child: const Text('Retry')),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Map backend targets to app routes/screens.
+        final target = data.target ?? '/dashboard';
+        switch (target) {
+          case '/dashboard/provider':
+            return const ProviderDashboardScreen();
+          case '/dashboard/client':
+          case '/dashboard':
+          default:
+            return const HomeShell();
+        }
+      },
+    );
+  }
+}
+
+class _ResolveResult {
+  final String? role;
+  final String? target;
+  final bool isUnauthenticated;
+  final String? message;
+
+  const _ResolveResult._({this.role, this.target, this.isUnauthenticated = false, this.message});
+  const _ResolveResult.unauthenticated() : this._(isUnauthenticated: true);
+  const _ResolveResult.error({String? message}) : this._(message: message);
+  const _ResolveResult.ok({required String role, required String target}) : this._(role: role, target: target);
+
+  // Convenience flag used by the UI to render an error-and-retry state.
+  bool get hasError => message != null && !isUnauthenticated;
 }

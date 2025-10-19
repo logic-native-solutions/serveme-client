@@ -20,107 +20,125 @@ class _EditProfileState extends State<EditProfile> {
           textAlign: TextAlign.left,
         ),
         centerTitle: false,
-        backgroundColor: Color(0xFFF8FCF7) ,
+        backgroundColor: Color(0xFFF8FCF7),
         iconTheme: IconThemeData(
           color: Colors.black,
         ),
       ),
-      body: Column(
-        children: [
-          SizedBox(height: 20),
-          Center(),
-          CircleAvatar(
-              radius: 80,
-              backgroundColor: Colors.grey,
-              backgroundImage: AssetImage('assets/images/avatar.png')
-          ),
-          SizedBox(height: 7),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              UserField(
-                fieldKey: 'firstName',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+      // Use a scroll view and horizontal padding to ensure the form never touches screen edges
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+        child: Center(
+          // Constrain the max content width for better readability on large screens
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ---------- Avatar ----------
+                const Center(),
+                // Use an explicit child with BoxFit.contain so the avatar image is not zoomed/cropped
+                CircleAvatar(
+                  radius: 80,
+                  backgroundColor: Colors.grey,
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/images/avatar.png',
+                      // Contain prevents zoom-in/cropping that CircleAvatar.backgroundImage (cover) would cause
+                      fit: BoxFit.contain,
+                      width: 160,
+                      height: 160,
+                    ),
+                  ),
                 ),
-              ),
-              SizedBox(width: 10),
-              UserField(
-                fieldKey: 'lastName',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(height: 7),
+                // ---------- Name (read-only display pulled from existing UserField widget) ----------
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    UserField(
+                      fieldKey: 'firstName',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    UserField(
+                      fieldKey: 'lastName',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
 
-          SizedBox(height: 30),
+                const SizedBox(height: 30),
 
-          SizedBox(
-            width: 400,
-            child: TextField(
-              decoration: InputDecoration(
-                labelText: 'First Name',
-                border: OutlineInputBorder(),
-              ),
-          ),
-          ),
+                // ---------- Form Fields ----------
+                // Full-width inside the constrained container; never exceeds maxWidth and keeps side padding
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'First Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
 
-          SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-          SizedBox(
-            width: 400,
-            child: TextField(
-              decoration: InputDecoration(
-                labelText: 'Last Name',
-                border: OutlineInputBorder(),
-              ),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Last Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ---------- Save Button ----------
+                // Make button take full width of the form area while respecting padding and maxWidth
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () {},
+                    child: const Text('Save Changes'),
+                  ),
+                ),
+              ],
             ),
           ),
-          SizedBox(height: 20),
-          SizedBox(
-            width: 400,
-            child: TextField(
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          SizedBox(height: 20),
-          SizedBox(
-            width: 400,
-            child: TextField(
-              decoration: InputDecoration(
-                labelText: 'Phone Number',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          SizedBox(height: 20),
-          SizedBox(
-            width: 400,
-            child: TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: Theme
-                    .of(context)
-                    .primaryColor,
-                foregroundColor: Theme
-                    .of(context)
-                    .colorScheme
-                    .onPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              onPressed: () {
-              },
-              child: const Text('Save Changes'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

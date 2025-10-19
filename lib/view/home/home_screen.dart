@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:client/auth/api_client.dart';
+import 'package:client/auth/role_store.dart';
 import 'package:client/custom/loader.dart';
 import 'package:client/global/greet_user.dart';
 import 'package:client/view/home/provider_section.dart';
@@ -15,6 +16,7 @@ import 'advert_section.dart';
 import 'current_user.dart';
 import 'greet_header.dart';
 import 'header_actions.dart';
+import 'location_store.dart';
 
 // =============================================================================
 //  Home: Header + Actions + Advert + CurrentUser store + Screen
@@ -69,7 +71,9 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   @override
   void initState() {
     super.initState();
-    _bootstrap();
+    // Defer bootstrap to after the first frame so any ChangeNotifier
+    // notifications from stores won't collide with the build phase.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   void _bootstrap() {
@@ -77,12 +81,15 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
       await CurrentUserStore.I.load();
       final store = CurrentUserStore.I;
 
-      if (mounted && store.user == null && store.error == 'Session expired') {
+      if (mounted && (store.isUnauthorized || store.error == 'Session expired')) {
         // Only now do a clean logout/navigation
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Session expired. Please log in again.')),
         );
         await ApiClient.logout();
+        // Clear role and any cached current-user profile to ensure next session starts clean.
+        try { RoleStore.clear(); } catch (_) {}
+        try { CurrentUserStore.I.clear(); } catch (_) {}
         if (mounted) {
           Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
         }
@@ -154,9 +161,12 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                 final String city = (user?.city ?? '').trim();
                 final String country = (user?.country ?? '').trim();
                 final String derivedLocation = [city, country].where((s) => s.isNotEmpty).join(', ');
-                // Prefer a user-chosen address from AddressScreen if present
+                // Prefer a user-chosen address from AddressScreen or the shared store if present
+                final String fromStore = (LocationStore.I.address ?? '').trim();
                 final String overridden = (_selectedLocation ?? '').trim();
-                final String locationText = overridden.isNotEmpty ? overridden : derivedLocation;
+                final String locationText = overridden.isNotEmpty
+                    ? overridden
+                    : (fromStore.isNotEmpty ? fromStore : derivedLocation);
 
                 return AnimatedSwitcher(
                   duration: kHomeAnimDuration,
@@ -183,7 +193,22 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                                   name: name,
                                   greet: _greet,
                                   locationText: locationText,
-                                  onPressed: () => Navigator.of(context).pushNamed('/location-picker'),
+                                  onPressed: () async {
+                                    // Open AddressScreen and capture the selected address.
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => const AddressScreen()),
+                                    );
+                                    if (!mounted) return;
+                                    if (result is Map && result['description'] is String) {
+                                      setState(() {
+                                        _selectedLocation = (result['description'] as String).trim();
+                                      });
+                                      // Also update shared store so other headers can reflect this
+                                      // selection (e.g., after returning from Profile → Address).
+                                      LocationStore.I.address = _selectedLocation;
+                                    }
+                                  },
                                 ),
                               ),
                               if (user != null) HeaderActions(user: user),

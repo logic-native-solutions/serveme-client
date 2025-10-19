@@ -39,7 +39,7 @@ class _HomeShellState extends State<HomeShell> {
   // Pages for each tab. Using const widgets where possible preserves rebuilds.
   final List<Widget> _pages = const <Widget>[
     HomeScreen(),
-    MessageScreen(),
+    // MessageScreen(),
     BookingScreen(),
     WalletScreen(),
     ProfileScreen()
@@ -109,15 +109,15 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                   label: 'Home',
                 ),
-                NavigationDestination(
-                  icon: _AnimatedNavIcon(
-                    icon: Icons.chat_bubble_outline,
-                    selectedIcon: Icons.chat_bubble,
-                    selected: _index == 1,
-                    duration: _kIconAnim,
-                  ),
-                  label: 'Messages',
-                ),
+                // NavigationDestination(
+                //   icon: _AnimatedNavIcon(
+                //     icon: Icons.chat_bubble_outline,
+                //     selectedIcon: Icons.chat_bubble,
+                //     selected: _index == 1,
+                //     duration: _kIconAnim,
+                //   ),
+                //   label: 'Messages',
+                // ),
                 NavigationDestination(
                   icon: _AnimatedNavIcon(
                     icon: Icons.calendar_today_outlined,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:client/api/jobs_api.dart';
+import 'package:dio/dio.dart';
 
 /// ProviderJobsScreen
 /// -------------------
@@ -25,42 +27,77 @@ class ProviderJobsScreen extends StatefulWidget {
 }
 
 class _ProviderJobsScreenState extends State<ProviderJobsScreen> {
-  // Selected sub-tab in this screen: 0=Active, 1=Scheduled, 2=Past
+  // Selected sub-tab in this screen: 0=Active, 1=Scheduled, 2=Past, 3=Past
   int _tabIndex = 0;
 
-  // Mock data for the lists (replace with repository/store later)
-  final List<_JobCardData> _active = const [
-    _JobCardData(
-      statusLabel: 'In Progress',
-      title: 'Home Cleaning',
-      client: 'Sarah Miller',
-      imageUrl: 'https://picsum.photos/seed/homeclean/300/200',
-    ),
-  ];
+  // Loading/error + live jobs fetched from backend for provider role
+  bool _loading = true;
+  String? _error;
+  List<Job> _jobs = const [];
 
-  final List<_JobCardData> _scheduled = const [
-    _JobCardData(
-      statusLabel: 'Scheduled',
-      title: 'Plumbing Repair',
-      client: 'David Lee',
-      imageUrl: 'https://picsum.photos/seed/plumb/300/200',
-    ),
-  ];
+  // Derived UI lists
+  List<_JobCardData> _active = const [];
+  List<_JobCardData> _scheduled = const [];
+  List<_JobCardData> _past = const [];
 
-  final List<_JobCardData> _past = const [
-    _JobCardData(
-      statusLabel: 'Completed',
-      title: 'Electrical Installation',
-      client: 'Emily Chen',
-      imageUrl: 'https://picsum.photos/seed/elect/300/200',
-    ),
-    _JobCardData(
-      statusLabel: 'Completed',
-      title: 'Landscaping',
-      client: 'Michael Brown',
-      imageUrl: 'https://picsum.photos/seed/land/300/200',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final jobs = await JobsApi.I.listJobs(role: 'provider');
+      setState(() {
+        _jobs = jobs;
+        _mapJobsToSections();
+        _loading = false;
+        _error = null;
+      });
+    } on DioException catch (e) {
+      setState(() {
+        _loading = false;
+        _error = e.response?.statusCode == 401
+            ? 'Please log in to view your jobs.'
+            : 'Failed to load jobs. Pull to refresh to retry.';
+      });
+    } catch (_) {
+      setState(() {
+        _loading = false;
+        _error = 'Failed to load jobs. Pull to refresh to retry.';
+      });
+    }
+  }
+
+  void _mapJobsToSections() {
+    // Group backend jobs into UI buckets. Adjust rules as needed when backend adds explicit scheduling fields.
+    List<_JobCardData> active = [];
+    List<_JobCardData> scheduled = [];
+    List<_JobCardData> past = [];
+
+    for (final j in _jobs) {
+      final s = j.status.toLowerCase();
+      final data = _JobCardData(
+        statusLabel: j.status,
+        title: j.serviceType, // TODO: map to display name if available
+        client: '', // TODO: backend to return client name/alias
+        imageUrl: 'https://picsum.photos/seed/${j.serviceType}/300/200',
+        jobId: j.id,
+      );
+      if (s == 'completed' || s == 'canceled') {
+        past.add(data);
+      } else if (s == 'scheduled') {
+        scheduled.add(data);
+      } else {
+        active.add(data);
+      }
+    }
+
+    _active = active;
+    _scheduled = scheduled;
+    _past = past;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,11 +107,19 @@ class _ProviderJobsScreenState extends State<ProviderJobsScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
             children: [
+              if (_loading) const LinearProgressIndicator(minHeight: 3),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                const SizedBox(height: 4),
+                FilledButton.tonal(onPressed: _load, child: const Text('Retry')),
+              ],
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Align(
@@ -194,11 +239,7 @@ class _ProviderJobsScreenState extends State<ProviderJobsScreen> {
     final cs = theme.colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Job details (placeholder')),
-        );
-      },
+      onTap: () => _showUpdateStatusSheet(data),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
@@ -243,10 +284,90 @@ class _ProviderJobsScreenState extends State<ProviderJobsScreen> {
     );
   }
 
+  // Show a bottom sheet with valid next statuses and post update
+  Future<void> _showUpdateStatusSheet(_JobCardData data) async {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final current = data.statusLabel.toLowerCase();
+
+    // Derive simple next-step options based on guide
+    List<String> options;
+    if (current == 'assigned') {
+      options = const ['enroute'];
+    } else if (current == 'enroute') {
+      options = const ['arrived'];
+    } else if (current == 'arrived') {
+      options = const ['in_progress'];
+    } else if (current == 'in_progress') {
+      options = const ['completed'];
+    } else {
+      options = const [];
+    }
+
+    // Canceled is always allowed by provider per guide rules
+    if (!['completed','canceled'].contains(current)) {
+      options = [...options, 'canceled'];
+    }
+
+    if (options.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No actions available for this job status.')));
+      return;
+    }
+
+    final status = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Center(child: Text('Update status', style: theme.textTheme.titleLarge?.copyWith(fontFamily: 'AnonymousPro', fontWeight: FontWeight.w700)))),
+                IconButton(onPressed: () => Navigator.of(ctx).maybePop(), icon: const Icon(Icons.close)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...options.map((s) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: cs.outlineVariant)),
+                    title: Text(s.replaceAll('_', ' ').toUpperCase()),
+                    onTap: () => Navigator.of(ctx).pop(s),
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted || status == null || status.isEmpty) return;
+
+    final scaffold = ScaffoldMessenger.of(context);
+    try {
+      await JobsApi.I.updateStatus(data.jobId, status);
+      scaffold.showSnackBar(SnackBar(content: Text('Updated status to ${status.replaceAll('_', ' ')}')));
+      await _load();
+    } on DioException catch (e) {
+      final code = e.response?.statusCode;
+      final msg = code == 409
+          ? 'Status update conflict. Please refresh.'
+          : code == 401
+              ? 'Please log in to update jobs.'
+              : 'Failed to update status.';
+      scaffold.showSnackBar(SnackBar(content: Text(msg)));
+    } catch (_) {
+      scaffold.showSnackBar(const SnackBar(content: Text('Failed to update status.')));
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Incoming Job Request flow
   // ---------------------------------------------------------------------------
   void _showIncomingJobRequest() async {
+    // Show the design dialog first; Accept will proceed to enter a Job ID and call backend.
     final accepted = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -259,14 +380,51 @@ class _ProviderJobsScreenState extends State<ProviderJobsScreen> {
     if (!mounted) return;
 
     if (accepted == true) {
-      // Show Accepted confirmation
-      await showDialog<void>(
+      // Ask provider for the Job ID to accept (in production this comes from the FCM payload)
+      final controller = TextEditingController();
+      final jobId = await showDialog<String>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const _AcceptedDialog(),
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('Enter Job ID'),
+            content: TextField(
+              controller: controller,
+              decoration: const InputDecoration(hintText: 'e.g., job_123'),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Accept')),
+            ],
+          );
+        },
       );
+      if (!mounted || jobId == null || jobId.isEmpty) return;
+
+      final scaffold = ScaffoldMessenger.of(context);
+      try {
+        await JobsApi.I.acceptJob(jobId);
+        scaffold.showSnackBar(const SnackBar(content: Text('Job accepted')));
+        await _load();
+        // Show Accepted confirmation using design dialog
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const _AcceptedDialog(),
+        );
+      } on DioException catch (e) {
+        final code = e.response?.statusCode;
+        final msg = (code == 409)
+            ? 'This job was already taken by another provider.'
+            : (code == 401)
+                ? 'Please log in to accept jobs.'
+                : 'Failed to accept job. Please try again.';
+        scaffold.showSnackBar(SnackBar(content: Text(msg)));
+      } catch (_) {
+        scaffold.showSnackBar(const SnackBar(content: Text('Failed to accept job. Please try again.')));
+      }
     } else if (accepted == false) {
-      // Ask for decline reason first
+      // Ask for decline reason first (UI only for now). When wiring, call POST /api/v1/jobs/{id}/decline { reason }
       final reason = await showModalBottomSheet<String>(
         context: context,
         isScrollControlled: true,
@@ -343,11 +501,19 @@ class _Segmented3 extends StatelessWidget {
 }
 
 class _JobCardData {
+  // Minimal UI model representing a provider job list item. jobId is used for actions like Accept/Update Status.
+  final String jobId;
   final String statusLabel;
   final String title;
   final String client;
-  final String imageUrl;
-  const _JobCardData({required this.statusLabel, required this.title, required this.client, required this.imageUrl});
+  final String imageUrl; // Using a lightweight placeholder image until real thumbnails are provided.
+  const _JobCardData({
+    required this.jobId,
+    required this.statusLabel,
+    required this.title,
+    required this.client,
+    required this.imageUrl,
+  });
 }
 
 class _SectionHeader extends StatelessWidget {

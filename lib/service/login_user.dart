@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:client/auth/api_client.dart';
 import 'package:client/model/login_results_model.dart';
 
 /// ---------------------------------------------------------------------------
@@ -31,6 +30,9 @@ class LoginUserService {
   /// Base URL (with port) of the backend server.
   final String serverPort;
 
+  // Use the shared Dio client so cookies (refresh token) are persisted by CookieManager.
+  Dio get _dio => ApiClient.I.dio;
+
   // ---------------------------------------------------------------------------
   // Constructor
   // ---------------------------------------------------------------------------
@@ -43,90 +45,84 @@ class LoginUserService {
   });
 
   // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
-
-  /// Attempts to decode [body] as JSON, returning a map or `null` if invalid.
-  Map<String, dynamic>? _tryParseJson(String body) {
-    if (body.isEmpty) return null;
-    try {
-      final decoded = jsonDecode(body);
-      return decoded is Map<String, dynamic> ? decoded : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
   /// Submits the login credentials to the backend and returns a [LoginResultModel].
   ///
-  /// Sends a `POST` request to `'$serverPort/api/auth/login'` with
-  /// `{'email': email, 'password': password}` as JSON.
-  /// Handles various HTTP status codes and common errors:
-  /// - `200`: success, returns a token.
-  /// - `400/422`: field validation errors.
-  /// - `401`: unauthorized (wrong credentials).
-  /// - `404`: user not found.
-  /// - `429`: too many attempts.
-  /// - Others: generic server error.
-  /// Also catches [TimeoutException], [SocketException], and any unexpected error.
+  /// Uses the shared Dio client so that cookies (e.g., refresh token) set by the
+  /// backend are captured by CookieManager and persisted for subsequent refresh.
+  /// Sends a `POST` to `/api/auth/login` with JSON body.
   Future<LoginResultModel> submitFormDataToServer() async {
-    final url = Uri.parse('$serverPort/api/auth/login');
-    final body = jsonEncode({'email': email.trim(), 'password': password.trim()});
-
+    // Build URL relative to the configured base; rely on ApiClient normalization.
+    final path = normalizeApiPath(ApiClient.I.dio, '/api/auth/login');
     try {
-      final res = await http
+      final res = await _dio
           .post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      )
+            path,
+            data: {
+              'email': email.trim(),
+              'password': password.trim(),
+            },
+            options: Options(
+              headers: {'Content-Type': 'application/json'},
+            ),
+          )
           .timeout(const Duration(seconds: 15));
 
-      final Map<String, dynamic>? resBody = _tryParseJson(res.body);
+      final status = res.statusCode ?? 0;
+      final data = res.data is Map<String, dynamic> ? res.data as Map<String, dynamic> : <String, dynamic>{};
 
-      if (res.statusCode == 200) {
-        final token = resBody?['token'] as String?;
+      if (status == 200) {
+        final token = data['token'] as String? ?? data['accessToken'] as String?;
         if (token == null) {
           return LoginResultModel.global('Malformed success response');
         }
         return LoginResultModel.success(token);
       }
 
-      // Map common error patterns
-      switch (res.statusCode) {
+      switch (status) {
         case 400:
         case 422:
           return LoginResultModel.fieldErrors(
-            emailError: resBody?['email'] as String?,
-            passwordError: resBody?['password'] as String?,
-            message: resBody?['message'] as String?,
+            emailError: data['email'] as String?,
+            passwordError: data['password'] as String?,
+            message: data['message'] as String?,
           );
         case 401:
           return LoginResultModel.global(
-            resBody?['message'] as String? ?? 'Invalid email or password',
+            data['message'] as String? ?? 'Invalid email or password',
           );
         case 404:
           return LoginResultModel.fieldErrors(
-            emailError: resBody?['email'] as String? ?? 'User not found',
+            emailError: data['email'] as String? ?? 'User not found',
           );
         case 429:
           return LoginResultModel.global(
-            resBody?['message'] as String? ?? 'Too many attempts. Try later.',
+            data['message'] as String? ?? 'Too many attempts. Try later.',
           );
         default:
           return LoginResultModel.global(
-            (resBody?['message'] as String?) ??
-                'Server error (${res.statusCode}). Please try again.',
+            (data['message'] as String?) ?? 'Server error ($status). Please try again.',
           );
       }
     } on TimeoutException {
       return LoginResultModel.global('Request timed out. Please try again.');
-    } on SocketException {
-      return LoginResultModel.global('Network error. Check your connection.');
+    } on DioException catch (e) {
+      final s = e.response?.statusCode ?? 0;
+      final m = e.response?.data is Map<String, dynamic> ? (e.response!.data['message'] as String?) : null;
+      if (s == 401) return LoginResultModel.global(m ?? 'Invalid email or password');
+      if (s == 404) return LoginResultModel.fieldErrors(emailError: m ?? 'User not found');
+      if (s == 429) return LoginResultModel.global(m ?? 'Too many attempts. Try later.');
+      if (s == 400 || s == 422) {
+        final data = e.response?.data as Map<String, dynamic>?;
+        return LoginResultModel.fieldErrors(
+          emailError: data?['email'] as String?,
+          passwordError: data?['password'] as String?,
+          message: data?['message'] as String?,
+        );
+      }
+      return LoginResultModel.global(m ?? 'Unexpected error. Please try again.');
     } catch (_) {
       return LoginResultModel.global('Unexpected error. Please try again.');
     }

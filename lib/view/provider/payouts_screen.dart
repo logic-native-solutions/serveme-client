@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:client/api/stripe_connect_api.dart';
+import 'package:dio/dio.dart';
 
 // This file intentionally keeps only the payout list view. See:
 //  • withdraw_screen.dart for the Withdraw flow template
@@ -27,18 +30,63 @@ import 'package:flutter/material.dart';
 /// Notes
 ///  - Replace the mock list below with your repository/store when APIs are ready.
 ///  - Amount prefix uses 'R' for Rand as used elsewhere; localize as needed.
-class ProviderPayoutsScreen extends StatelessWidget {
+class ProviderPayoutsScreen extends StatefulWidget {
   const ProviderPayoutsScreen({super.key});
 
   static const String route = '/provider/payouts';
 
-  // Mock values — replace via state/store
-  final double _balance = 1250.00;
-  final List<_Txn> _txns = const [
-    _Txn(title: 'Service Payment', dateLabel: 'August 15, 2024', amount: 250.00),
-    _Txn(title: 'Service Payment', dateLabel: 'August 10, 2024', amount: 500.00),
-    _Txn(title: 'Service Payment', dateLabel: 'August 5, 2024', amount: 500.00),
-  ];
+  @override
+  State<ProviderPayoutsScreen> createState() => _ProviderPayoutsScreenState();
+}
+
+class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
+  StripeAccountInfo? _account;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final info = await StripeConnectApi.I.getStripeAccountInfo();
+      if (!mounted) return;
+      setState(() { _account = info; });
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() { _error = 'Stripe account request timed out — pull to refresh.'; });
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String? serverMsg;
+      if (data is Map) { serverMsg = (data['message'] ?? data['error'] ?? data['detail'])?.toString(); }
+      setState(() { _error = serverMsg ?? 'Failed to load Stripe account'; });
+    } catch (_) {
+      setState(() { _error = 'Failed to load Stripe account'; });
+    } finally {
+      if (mounted) setState(() { _loading = false; });
+    }
+  }
+
+  String _formatMinor(int minor, String currency) {
+    final code = currency.toUpperCase();
+    return '$code ${(minor/100.0).toStringAsFixed(2)}';
+  }
+
+  String _preferredCurrency(List<StripeBalanceAmount> list) {
+    if (list.isNotEmpty && list.first.currency.isNotEmpty) return list.first.currency;
+    return 'usd';
+  }
+
+  String _date(int epoch) {
+    if (epoch <= 0) return '';
+    final dt = DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: true).toLocal();
+    String two(int v)=> v.toString().padLeft(2,'0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +119,9 @@ class ProviderPayoutsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'R${_balance.toStringAsFixed(2)}',
+                _account != null
+                    ? _formatMinor(_account!.balances.availableTotalMinor, _preferredCurrency(_account!.balances.available))
+                    : (_loading ? 'Loading…' : (_error ?? '—')),
                 style: text.displaySmall?.copyWith(
                   fontFamily: 'AnonymousPro',
                   fontWeight: FontWeight.w700,
@@ -100,14 +150,57 @@ class ProviderPayoutsScreen extends StatelessWidget {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < _txns.length; i++) ...[
-                        if (i != 0) Divider(height: 1, color: cs.outlineVariant),
-                        _TxnRow(txn: _txns[i]),
-                      ],
-                    ],
-                  ),
+                  child: (_account != null && _account!.transactions.isNotEmpty)
+                      ? Column(
+                          children: [
+                            for (int i = 0; i < _account!.transactions.length; i++) ...[
+                              if (i != 0) Divider(height: 1, color: cs.outlineVariant),
+                              Builder(
+                                builder: (context) {
+                                  final t = _account!.transactions[i];
+                                  final net = t.net != 0 ? t.net : t.amount;
+                                  final positive = net >= 0;
+                                  final color = positive ? Colors.green : Colors.red;
+                                  final title = (t.description.isNotEmpty ? t.description : t.type).trim();
+                                  return ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    title: Text(title.isEmpty ? 'Transaction' : title, style: text.titleMedium),
+                                    subtitle: Text(_date(t.created), style: text.bodySmall),
+                                    trailing: Text(
+                                      (positive ? '+' : '−') + _formatMinor(net.abs(), t.currency),
+                                      style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: color),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _loading ? null : _load,
+                                child: const Text('Refresh'),
+                              ),
+                            )
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Icon(Icons.receipt_long_outlined, color: cs.onSurfaceVariant),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _error ?? (_loading
+                                    ? 'Loading transactions…'
+                                    : 'No transactions yet. Complete payouts onboarding to receive funds.'),
+                                style: text.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _loading ? null : _load,
+                              child: const Text('Refresh'),
+                            )
+                          ],
+                        ),
                 ),
               ),
 

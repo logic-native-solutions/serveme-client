@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:client/api/jobs_api.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:client/view/home/location_store.dart';
 
 class BookingScreen extends StatelessWidget {
   const BookingScreen({super.key});
@@ -20,66 +23,39 @@ enum _BookingFilter { all, upcoming, past }
 
 
 class _BookingScreenState extends State<_BookingScreen> {
-  // ---------------------------------------------------------------------------
-  // Mock data for now – wire to your API/store later.
-  // ---------------------------------------------------------------------------
-  // Simple filter for the list
-
   _BookingFilter _filter = _BookingFilter.all;
 
-  final List<_Booking> _bookings = const [
-    _Booking(
-      title: 'House Cleaning',
-      when: 'Tomorrow, 10:00 AM',
-      isUpcoming: true,
-      imagePath: 'assets/images/Home_Cleaning_Cat.png',
-      status: 'Upcoming',
-      price: 'R350',
-      provider: 'Lerato M.',
-      rating: 4.9,
-    ),
-    _Booking(
-      title: 'Elderly Care',
-      when: 'Next week, 2:00 PM',
-      isUpcoming: true,
-      imagePath: 'assets/images/Elderly_Care_Cat.png',
-      status: 'Upcoming',
-      price: 'R180/hr',
-      provider: 'Thabo S.',
-      rating: 4.8,
-    ),
-    _Booking(
-      title: 'Plumbing Repair',
-      when: 'Last month, 3:00 PM',
-      isUpcoming: false,
-      imagePath: 'assets/images/Plumbing_Cat.png',
-      status: 'Completed',
-      price: 'R650',
-      provider: 'Nomsa K.',
-      rating: 4.7,
-    ),
-    _Booking(
-      title: 'Painting',
-      when: '2 months ago, 11:00 AM',
-      isUpcoming: false,
-      imagePath: 'assets/images/Painting_Cat.png',
-      status: 'Completed',
-      price: 'R1200',
-      provider: 'Sizwe P.',
-      rating: 4.6,
-    ),
-  ];
+  bool _loading = true;
+  String? _error;
+  List<_Booking> _bookings = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final jobs = await JobsApi.I.listJobs(role: 'client');
+      setState(() {
+        _bookings = jobs.map(_mapJobToBooking).toList();
+        _loading = false;
+        _error = null;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'Failed to load bookings';
+      });
+    }
+  }
 
   Future<void> _handleRefresh() async {
-    // TODO: wire this to your real API/store reload
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await _load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Bookings refreshed'),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(12),
-      ),
+      const SnackBar(content: Text('Bookings updated')),
     );
   }
 
@@ -109,6 +85,14 @@ class _BookingScreenState extends State<_BookingScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
+            if (_loading) const LinearProgressIndicator(minHeight: 3),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              const SizedBox(height: 4),
+              FilledButton.tonal(onPressed: _load, child: const Text('Retry')),
+              const SizedBox(height: 8),
+            ],
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
@@ -169,6 +153,54 @@ class _SectionHeader extends StatelessWidget {
         fontWeight: FontWeight.w700,
       ),
     );
+  }
+}
+
+_Booking _mapJobToBooking(Job j) {
+  final status = (j.status).toLowerCase();
+  final upcomingStatuses = {
+    'pending','assigned','enroute','arrived','in_progress'
+  };
+  final isUpcoming = upcomingStatuses.contains(status);
+  String displayPrice = '';
+  if (j.price != null) {
+    final amt = (j.price!.total / 100).toStringAsFixed(2);
+    displayPrice = '${j.price!.currency} $amt';
+  }
+  String when = '';
+  final dt = j.createdAt ?? j.acceptedAt ?? j.completedAt;
+  if (dt != null) {
+    final d = dt.toLocal();
+    when = '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+  }
+  // Map serviceType -> image asset (fallback generic)
+  final img = _imageForServiceType(j.serviceType);
+  return _Booking(
+    jobId: j.id,
+    assignedProviderId: j.assignedProviderId,
+    title: j.serviceType, // replace with display label when available
+    when: when.isEmpty ? '—' : when,
+    isUpcoming: isUpcoming,
+    imagePath: img,
+    status: j.status,
+    price: displayPrice,
+    provider: '',
+    rating: null,
+  );
+}
+
+String _imageForServiceType(String t) {
+  switch (t.toLowerCase()) {
+    case 'cleaner':
+    case 'home_cleaning':
+    case 'cleaning':
+      return 'assets/images/Home_Cleaning_Cat.png';
+    case 'plumber':
+      return 'assets/images/Plumbing_Cat.png';
+    case 'painting':
+      return 'assets/images/Painting_Cat.png';
+    default:
+      return 'assets/images/Home_Cleaning_Cat.png';
   }
 }
 
@@ -312,10 +344,79 @@ class _BookingTile extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   if (b.isUpcoming) ...[
+                    // Reschedule would open a date/time picker. Left as TODO, only wiring actions requested in issue.
                     FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.edit_calendar), label: const Text('Reschedule')),
-                    OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.chat_bubble), label: const Text('Contact')),
-                    OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.pin_drop), label: const Text('Directions')),
-                    TextButton.icon(onPressed: () {}, icon: const Icon(Icons.cancel), label: const Text('Cancel')),
+                    // Contact: navigate to the Messages screen. If no provider yet, show an info message.
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        if (b.assignedProviderId == null || b.assignedProviderId!.isEmpty) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(content: Text('A provider has not been assigned yet. We\'ll notify you once connected.')),
+                          );
+                          return;
+                        }
+                        Navigator.of(ctx).pushNamed('/message');
+                      },
+                      icon: const Icon(Icons.chat_bubble),
+                      label: const Text('Contact'),
+                    ),
+                    // Directions: open Maps with the best available location hint.
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        // Try to use the currently selected address from LocationStore (shared with headers)
+                        final addr = LocationStore.I.address;
+                        if (addr == null || addr.trim().isEmpty) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(content: Text('No address available for directions. Set your location in profile.')),
+                          );
+                          return;
+                        }
+
+                        // Build a universal Maps fallback URL. We prefer launching directly and
+                        // checking the boolean result instead of calling canLaunchUrl first.
+                        // Rationale: On iOS, canLaunchUrl may throw a channel-error after a hot
+                        // restart if the plugin channel hasn't reattached yet. Using launchUrl
+                        // directly avoids that crash; we handle the false return and exceptions.
+                        final q = Uri.encodeComponent(addr);
+                        final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$q');
+                        try {
+                          final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          if (!ok) {
+                            if (!ctx.mounted) return;
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('Could not open Maps on this device.')),
+                            );
+                          }
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(content: Text('Could not open Maps on this device.')),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.pin_drop),
+                      label: const Text('Directions'),
+                    ),
+                    // Cancel: call backend and then close the sheet.
+                    TextButton.icon(
+                      onPressed: () async {
+                        try {
+                          await JobsApi.I.updateStatus(b.jobId, 'canceled');
+                          if (!ctx.mounted) return;
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Booking canceled. Pull to refresh to update the list.')),
+                          );
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(content: Text('Failed to cancel booking. Please try again.')),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.cancel),
+                      label: const Text('Cancel'),
+                    ),
                   ] else ...[
                     FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.refresh), label: const Text('Rebook')),
                     OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.receipt_long), label: const Text('Invoice')),
@@ -334,6 +435,8 @@ class _BookingTile extends StatelessWidget {
 }
 
 class _Booking {
+  final String jobId;           // Backend job identifier
+  final String? assignedProviderId; // Null until assigned
   final String title;
   final String when;
   final bool isUpcoming;
@@ -344,6 +447,8 @@ class _Booking {
   final double? rating;   // optional rating
 
   const _Booking({
+    required this.jobId,
+    required this.assignedProviderId,
     required this.title,
     required this.when,
     required this.isUpcoming,

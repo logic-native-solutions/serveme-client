@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:client/auth/api_client.dart';
+import 'package:client/auth/auth_store.dart';
 import 'package:client/model/user_model.dart';
 import 'package:dio/dio.dart';
 
@@ -29,14 +31,31 @@ class CurrentUserStore extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  /// True when the last load() attempt resulted in a 401 Unauthorized.
+  bool _isUnauthorized = false;
+  bool get isUnauthorized => _isUnauthorized;
+
   Future<UserModel?> load({bool force = false}) async {
     if (_user != null && !force) return _user;
 
     _isLoading = true;
     _error = null;
-    notifyListeners();
+    _isUnauthorized = false;
+    // Avoid notifying listeners during build. Defer to the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!hasListeners) return;
+      try { notifyListeners(); } catch (_) {}
+    });
 
     try {
+      // If there is no token, skip the network call and mark as unauthorized.
+      final token = await AuthStore.readToken();
+      if (token == null || token.isEmpty) {
+        _error = 'Session expired';
+        _isUnauthorized = true;
+        return null;
+      }
+
       final reqPath = _normalizedUserPath(ApiClient.I.dio, kUserDetailsPath);
       final res = await ApiClient.I.dio.get(reqPath);
       if (res.statusCode == 200 && res.data != null) {
@@ -48,6 +67,7 @@ class CurrentUserStore extends ChangeNotifier {
     } on DioException catch (e, st) {
       if (e.response?.statusCode == 401) {
         _error = 'Session expired';
+        _isUnauthorized = true;
       } else {
         _error = 'Failed to load user: ${e.message ?? e.toString()}';
       }
@@ -62,7 +82,10 @@ class CurrentUserStore extends ChangeNotifier {
       debugPrint('[CurrentUserStore] Stack: $st');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!hasListeners) return;
+        try { notifyListeners(); } catch (_) {}
+      });
     }
     return _user;
   }
@@ -71,6 +94,10 @@ class CurrentUserStore extends ChangeNotifier {
     _user = null;
     _error = null;
     _isLoading = false;
-    notifyListeners();
+    _isUnauthorized = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!hasListeners) return;
+      try { notifyListeners(); } catch (_) {}
+    });
   }
 }

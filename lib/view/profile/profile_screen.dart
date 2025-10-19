@@ -1,4 +1,5 @@
 import 'package:client/auth/api_client.dart';
+import 'package:client/auth/role_store.dart';
 import 'package:client/view/kyc/kyc_flow.dart';
 import 'package:client/view/profile/privacy_screen.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'address_screen.dart';
 import 'edit_profile.dart';
 import 'help_screen.dart';
 import 'notification_screen.dart';
+import '../home/location_store.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -185,10 +187,18 @@ class _ProfileScreenState extends State<_ProfileScreen> {
 
           // ----------------- Identity Header -----------------
           // Avatar + Name + Member since
+          // Use ClipOval + Image.asset with BoxFit.contain to avoid zoomed/cropped avatar
           CircleAvatar(
             radius: 80,
             backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
-            backgroundImage: const AssetImage('assets/images/avatar.png'),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/images/avatar.png',
+                fit: BoxFit.contain, // do not crop; keep full image visible inside the circle
+                width: 160,
+                height: 160,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -337,9 +347,12 @@ class _ProfileScreenState extends State<_ProfileScreen> {
                     MaterialPageRoute(builder: (context) => const AddressScreen()),
                   );
                   if (result is Map && result['description'] is String) {
+                    final picked = (result['description'] as String).trim();
                     setState(() {
-                      selectedAddress = result['description'] as String;
+                      selectedAddress = picked;
                     });
+                    // Update shared LocationStore so Home/Provider headers reflect this Primary Address
+                    LocationStore.I.address = picked;
                   }
                 },
               ),
@@ -362,9 +375,11 @@ class _ProfileScreenState extends State<_ProfileScreen> {
                     MaterialPageRoute(builder: (context) => const AddressScreen()),
                   );
                   if (result is Map && result['description'] is String) {
+                    final picked = (result['description'] as String).trim();
                     setState(() {
-                      selectedAddress = result['description'] as String;
+                      selectedAddress = picked;
                     });
+                    LocationStore.I.address = picked;
                   }
                 },
               ),
@@ -401,23 +416,19 @@ class _ProfileScreenState extends State<_ProfileScreen> {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => HelpScreen()));
                 },
               ),
-              // Development helper: quick switch between Client and Provider dashboards
-              // This does NOT alter account permissions. It simply navigates to a
-              // preview screen so you can see the provider side.
-              InfoTile(
-                icon: Icons.dashboard_customize_outlined,
-                label: 'Switch Dashboard (Preview)',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).pushNamed('/choose-dashboard');
-                },
-              ),
               InfoTile(
                 icon: Icons.logout_rounded,
                 label: 'Logout',
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
+                  // Perform a clean logout, clear role cache, and take user to Login.
                   await ApiClient.logout();
+                  RoleStore.clear();
+                  // Also clear any cached current-user profile so the next session starts clean.
+                  try { CurrentUserStore.I.clear(); } catch (_) {}
+                  if (mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+                  }
                 },
               ),
             ],

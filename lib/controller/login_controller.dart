@@ -1,16 +1,18 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 
 import 'package:client/static/load_env.dart';
 import 'package:client/global/toast_message.dart';
 import 'package:client/auth/auth_store.dart';
+import 'package:client/auth/api_client.dart';
+import 'package:client/auth/role_store.dart';
+import 'package:client/auth/auth_gate.dart';
 import 'package:client/service/login_user.dart';
 import 'package:client/model/login_model.dart';
 import 'package:client/custom/social_media_buttons.dart';
+import 'package:client/view/home/current_user.dart';
 
 class LoginController extends ChangeNotifier {
   // UI constants for the View
@@ -151,10 +153,20 @@ class LoginController extends ChangeNotifier {
       serverPort: Env.httpsServer,
     );
 
+    // Ensure we start from a clean local session (no stale cookies/token)
+    // BEFORE performing the login request so that cookies set by login are preserved.
+    await ApiClient.logout(callServer: false);
+    RoleStore.clear();
+    try {
+      CurrentUserStore.I.clear();
+    } catch (_) {}
+
     final result = await handler.submitFormDataToServer();
 
     if (result.success) {
       token = result.token ?? '';
+
+      // Persist the freshly issued access token for this user.
       await AuthStore.saveToken(token!);
 
       try {
@@ -180,7 +192,12 @@ class LoginController extends ChangeNotifier {
       }
 
       if (context.mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+        // After saving token, route back through AuthGate so that role-based
+        // redirect (/api/v1/dashboard/redirect) decides the correct dashboard.
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+          (route) => false,
+        );
       }
     } else {
       errors.emailError = result.emailError;
@@ -253,18 +270,19 @@ class LoginController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final uri = Uri.parse('${Env.httpsServer}/api/auth/send-reset-password-code');
-      final resp = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
+      // Use shared Dio client to keep behavior consistent (cookies, baseUrl, etc.)
+      final dio = ApiClient.I.dio;
+      final path = normalizeApiPath(dio, '/api/auth/send-reset-password-code');
+      final resp = await dio.post(path, data: {'email': email});
 
       if (context.mounted) {
-        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        final code = resp.statusCode ?? 0;
+        if (code >= 200 && code < 300) {
           showToastMessage('If that email exists, a reset code has been sent.', context);
         } else {
-          final msg = resp.body.isNotEmpty ? resp.body : 'Failed to send reset code.';
+          final msg = (resp.data is Map<String, dynamic>)
+              ? ((resp.data['message'] as String?) ?? 'Failed to send reset code.')
+              : 'Failed to send reset code.';
           showToastMessage(msg, context);
         }
       }

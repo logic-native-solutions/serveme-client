@@ -10,6 +10,7 @@ import 'package:client/view/message/message_screen.dart';
 import 'package:client/view/otp/otp.dart';
 import 'package:client/view/profile/profile_screen.dart';
 import 'package:client/view/booking/booking_screen.dart';
+import 'package:client/view/booking/waiting_for_provider.dart';
 import 'package:client/view/wallet/wallet_screen.dart';
 import 'package:client/view/provider/dashboard_screen.dart';
 import 'package:client/view/provider/analytics_screen.dart';
@@ -19,7 +20,7 @@ import 'package:client/view/provider/withdraw_screen.dart';
 import 'package:client/view/provider/manage_payment_methods_screen.dart';
 import 'package:client/view/provider/jobs_screen.dart';
 import 'package:client/view/provider/wallet_screen.dart';
-import 'package:client/view/welcome/role_selector.dart';
+import 'package:client/view/provider/provider_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:client/view/login/login.dart';
@@ -27,6 +28,9 @@ import 'package:client/view/register/register.dart';
 import 'auth/api_client.dart';
 import 'package:client/static/theme_data.dart';
 import 'package:flutter_phoenix/flutter_phoenix.dart';
+import 'package:client/service/push_messaging.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:client/view/provider/job_offer_screen.dart';
 
 /// ---------------------------------------------------------------------------
 /// main.dart
@@ -48,6 +52,9 @@ Future<void> main() async {
   await loadEnv();
   await AuthStore.init();
   await ApiClient.init(Env.httpsServer);
+
+  // Register background handler for FCM data messages (job_offer).
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   runApp(
     Phoenix(
@@ -86,6 +93,9 @@ class _AppState extends State<App> {
   void initState() {
     super.initState();
     _loadSession();
+    // Initialize push messaging (FCM) for job offer fan-out handling.
+    // This will request permissions, get token, and handle navigation for job_offer payloads.
+    unawaited(PushMessaging.I.init(navigatorKey));
   }
 
   @override
@@ -111,18 +121,16 @@ class _AppState extends State<App> {
         // '/profile': (_) => const ProfileScreen(),
         '/all-services': (_) => const AllServicesScreen(),
         '/reset': (_) => ResetNewPasswordScreen(resetSession: session),
-        // Dev-only role selector for previewing dashboards
-        '/choose-dashboard': (_) => const RoleSelectorScreen(),
         // Provider routes
-        '/provider/dashboard': (_) => const ProviderDashboardScreen(),
-        '/provider/analytics': (_) => const ProviderAnalyticsScreen(),
-        '/provider/availability': (_) => const ProviderAvailabilityScreen(),
-        '/provider/payouts': (_) => const ProviderPayoutsScreen(),
-        '/provider/payouts/withdraw': (_) => const WithdrawFundsScreen(),
-        '/provider/payouts/methods': (_) => const ManagePaymentMethodsScreen(),
-        '/provider/payouts/methods/add': (_) => const AddPaymentMethodScreen(),
-        '/provider/jobs': (_) => const ProviderJobsScreen(),
-        '/provider/wallet': (_) => const ProviderWalletScreen(),
+        '/provider/dashboard': (_) => const ProviderGuard(child: ProviderDashboardScreen()),
+        '/provider/analytics': (_) => const ProviderGuard(child: ProviderAnalyticsScreen()),
+        '/provider/availability': (_) => const ProviderGuard(child: ProviderAvailabilityScreen()),
+        '/provider/payouts': (_) => const ProviderGuard(child: ProviderPayoutsScreen()),
+        '/provider/payouts/withdraw': (_) => const ProviderGuard(child: WithdrawFundsScreen()),
+        '/provider/payouts/methods': (_) => const ProviderGuard(child: ManagePaymentMethodsScreen()),
+        '/provider/payouts/methods/add': (_) => const ProviderGuard(child: AddPaymentMethodScreen()),
+        '/provider/jobs': (_) => const ProviderGuard(child: ProviderJobsScreen()),
+        '/provider/wallet': (_) => const ProviderGuard(child: ProviderWalletScreen()),
       },
       onGenerateRoute: (settings) {
         switch(settings.name) {
@@ -145,6 +153,18 @@ class _AppState extends State<App> {
                 sessionId: sessionId,
                 backendBaseUrl: backendBaseUrl,
               ),
+              settings: settings,
+            );
+          case WaitingForProviderScreen.route:
+            final jobId = (settings.arguments ?? '') as String;
+            return MaterialPageRoute(
+              builder: (_) => WaitingForProviderScreen(jobId: jobId),
+              settings: settings,
+            );
+          case ProviderJobOfferScreen.route:
+            final jobId = (settings.arguments ?? '') as String;
+            return MaterialPageRoute(
+              builder: (_) => ProviderGuard(child: ProviderJobOfferScreen(jobId: jobId)),
               settings: settings,
             );
           default:  return MaterialPageRoute(

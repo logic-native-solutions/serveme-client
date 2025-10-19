@@ -1,3 +1,4 @@
+import 'package:client/view/profile/address_screen.dart';
 import 'package:flutter/material.dart';
 
 /// A small, tappable chip that shows the user's location.
@@ -20,7 +21,14 @@ class LocationChip extends StatelessWidget {
       color: cs.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        onTap: onTap,
+        onTap: onTap ?? () async {
+          // Default behavior: open AddressScreen. Prefer passing a custom
+          // handler from parent when you need to capture the selected address.
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddressScreen()),
+          );
+        },
         borderRadius: BorderRadius.circular(18),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
