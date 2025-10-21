@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:client/api/stripe_connect_api.dart';
+import 'package:client/api/paystack_api.dart';
+import 'package:client/api/stripe_connect_api.dart' show StripeStatus; // reuse model type only
 import 'package:dio/dio.dart';
 
 // This file intentionally keeps only the payout list view. See:
@@ -40,7 +41,7 @@ class ProviderPayoutsScreen extends StatefulWidget {
 }
 
 class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
-  StripeAccountInfo? _account;
+  StripeStatus? _status; // Reused model for Paystack status (linked + subaccountCode)
   bool _loading = false;
   String? _error;
 
@@ -53,19 +54,19 @@ class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final info = await StripeConnectApi.I.getStripeAccountInfo();
+      final status = await PaystackApi.I.getPaystackStatus();
       if (!mounted) return;
-      setState(() { _account = info; });
+      setState(() { _status = status; });
     } on TimeoutException {
       if (!mounted) return;
-      setState(() { _error = 'Stripe account request timed out — pull to refresh.'; });
+      setState(() { _error = 'Paystack status request timed out — pull to refresh.'; });
     } on DioException catch (e) {
       final data = e.response?.data;
       String? serverMsg;
       if (data is Map) { serverMsg = (data['message'] ?? data['error'] ?? data['detail'])?.toString(); }
-      setState(() { _error = serverMsg ?? 'Failed to load Stripe account'; });
+      setState(() { _error = serverMsg ?? 'Failed to load Paystack status'; });
     } catch (_) {
-      setState(() { _error = 'Failed to load Stripe account'; });
+      setState(() { _error = 'Failed to load Paystack status'; });
     } finally {
       if (mounted) setState(() { _loading = false; });
     }
@@ -76,10 +77,6 @@ class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
     return '$code ${(minor/100.0).toStringAsFixed(2)}';
   }
 
-  String _preferredCurrency(List<StripeBalanceAmount> list) {
-    if (list.isNotEmpty && list.first.currency.isNotEmpty) return list.first.currency;
-    return 'usd';
-  }
 
   String _date(int epoch) {
     if (epoch <= 0) return '';
@@ -109,9 +106,9 @@ class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Current Balance -----------------------------------------------------
+              // Payouts Status ------------------------------------------------------
               Text(
-                'Current Balance',
+                'Payouts Status',
                 style: text.titleLarge?.copyWith(
                   fontFamily: 'AnonymousPro',
                   fontWeight: FontWeight.w700,
@@ -119,12 +116,13 @@ class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                _account != null
-                    ? _formatMinor(_account!.balances.availableTotalMinor, _preferredCurrency(_account!.balances.available))
+                _status != null
+                    ? (_status!.linked
+                        ? 'Linked' + (_status!.accountId != null ? ' (Subaccount: ${_status!.accountId})' : '')
+                        : 'Not linked')
                     : (_loading ? 'Loading…' : (_error ?? '—')),
-                style: text.displaySmall?.copyWith(
-                  fontFamily: 'AnonymousPro',
-                  fontWeight: FontWeight.w700,
+                style: text.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
 
@@ -150,57 +148,32 @@ class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: (_account != null && _account!.transactions.isNotEmpty)
-                      ? Column(
-                          children: [
-                            for (int i = 0; i < _account!.transactions.length; i++) ...[
-                              if (i != 0) Divider(height: 1, color: cs.outlineVariant),
-                              Builder(
-                                builder: (context) {
-                                  final t = _account!.transactions[i];
-                                  final net = t.net != 0 ? t.net : t.amount;
-                                  final positive = net >= 0;
-                                  final color = positive ? Colors.green : Colors.red;
-                                  final title = (t.description.isNotEmpty ? t.description : t.type).trim();
-                                  return ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                    title: Text(title.isEmpty ? 'Transaction' : title, style: text.titleMedium),
-                                    subtitle: Text(_date(t.created), style: text.bodySmall),
-                                    trailing: Text(
-                                      (positive ? '+' : '−') + _formatMinor(net.abs(), t.currency),
-                                      style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: color),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: _loading ? null : _load,
-                                child: const Text('Refresh'),
-                              ),
-                            )
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Icon(Icons.receipt_long_outlined, color: cs.onSurfaceVariant),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _error ?? (_loading
-                                    ? 'Loading transactions…'
-                                    : 'No transactions yet. Complete payouts onboarding to receive funds.'),
-                                style: text.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.receipt_long_outlined, color: cs.onSurfaceVariant),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _error ?? (_loading
+                                  ? 'Loading…'
+                                  : 'Transactions will appear here once payouts are processed. Complete Paystack onboarding if you haven\'t linked a subaccount.'),
+                              style: text.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                             ),
-                            TextButton(
-                              onPressed: _loading ? null : _load,
-                              child: const Text('Refresh'),
-                            )
-                          ],
+                          ),
+                        ],
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _loading ? null : _load,
+                          child: const Text('Refresh'),
                         ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
