@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:client/auth/api_client.dart';
 import 'package:client/auth/auth_store.dart';

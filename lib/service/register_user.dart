@@ -134,7 +134,6 @@ class RegisterUserService {
 
       final plainBody = res.body;
       final parsed = _tryParseJson(plainBody);
-
       // Fast-path: some backends return raw-text duplicates instead of JSON.
       final duplicate = _mapDuplicateFromPlainBody(plainBody);
       if (duplicate != null) {

@@ -11,7 +11,6 @@ import 'package:client/custom/social_media_buttons.dart';
 class RegisterController extends ChangeNotifier {
   // ------------------------------- Constants --------------------------------
   static const List<String> genderOptions = <String>['Male', 'Female'];
-  // static const List<String> roleOptions = <String>['User', 'Provider',];
   static const Map<String, String> rolePayloadMap = {
     'Client': 'CLIENT',
     'Provider': 'PROVIDER',
@@ -95,58 +94,90 @@ class RegisterController extends ChangeNotifier {
 
   // -------------------------------- Validators ------------------------------
   String? validateFirstName(String? v) {
-    if (v == null || v.trim().isEmpty) return 'First Name is required';
+    if (v == null || v.trim().isEmpty) {
+      errors.firstName = 'First Name is required';
+      return errors.firstName;
+    }
     return null;
   }
 
   String? validateLastName(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Last Name is required';
+    if (v == null || v.trim().isEmpty) {
+      errors.lastName = 'Last Name is required';
+      return errors.lastName;
+    }
     return null;
   }
 
   String? validateGender(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Gender is required';
+    if (v == null || v.trim().isEmpty) {
+      errors.gender = 'Gender is required';
+      return errors.gender;
+    }
     return null;
   }
 
   String? validateRole(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Role is required';
+    if (v == null || v.trim().isEmpty) {
+      errors.role = 'Role is required';
+      return errors.role;
+    }
     return null;
   }
 
   String? validateId(String? v) {
-    if (v == null || v.trim().isEmpty) return 'ID Number is required';
-    if (v.length != 13) return 'ID Number must be 13 digits';
-    if (!RegExp(r'^\d{13}$').hasMatch(v)) return 'ID Number must be numeric';
+    if (v == null || v.trim().isEmpty) {
+      errors.idNumber = 'ID Number is required';
+      return errors.idNumber;
+    }
+    if (v.length != 13) {
+      errors.idNumber = 'ID Number must be 13 digits';
+      return errors.idNumber;
+    }
+    if (!RegExp(r'^\d{13}$').hasMatch(v)) {
+      errors.idNumber = 'ID Number must be numeric';
+      return errors.idNumber;
+    }
     return null;
   }
 
   String? validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Please enter your email';
+    if (v == null || v.trim().isEmpty) {
+      errors.email = 'Please enter your email';
+      return errors.email;
+    }
     if (!RegExp(r'^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$').hasMatch(v)) {
-      return 'Enter a valid email address';
+      errors.email = 'Enter a valid email address';
+      return errors.email;
     }
     return null;
   }
 
   String? validatePassword(String? v) {
-    if (v == null || v.isEmpty) return 'Please enter your password';
+    if (v == null || v.isEmpty) {
+      errors.password = 'Please enter your password';
+      return errors.password;
+    }
     final strong =
     RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&+=!]).{8,}$');
     if (!strong.hasMatch(v)) {
-      return 'Password must be 8+ chars, include upper, lower, number & special char';
+      errors.password = 'Password must be 8+ chars, include upper, lower, number & special char';
+      return errors.password;
     }
     return null;
   }
 
   String? validateMobileLocal(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Mobile number is required';
+    if (v == null || v.trim().isEmpty) {
+      errors.phoneNumber = 'Mobile number is required';
+      return errors.phoneNumber;
+    }
     try {
       final parsed = _parseWithCountry(v, country.countryCode);
       final ok = parsed.isValid(type: PhoneNumberType.mobile);
-      return ok ? null : 'Enter a valid mobile number';
+      return ok ? null : errors.phoneNumber = 'Enter a valid mobile number';
     } catch (_) {
-      return 'Enter a valid mobile number';
+      return errors.phoneNumber = 'Enter a valid mobile number';
     }
   }
 
@@ -227,10 +258,6 @@ class RegisterController extends ChangeNotifier {
 
     if (!valid || banner != null) {
       notifyListeners();
-      if (context.mounted && banner != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(banner)));
-      }
       return;
     }
 

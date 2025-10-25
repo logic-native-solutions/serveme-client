@@ -64,7 +64,7 @@ class JobsApi {
   }
 
   /// Update job status lifecycle.
-  /// Allowed statuses (provider): enroute | arrived | in_progress | completed | canceled
+  /// Allowed statuses (provider): en route | arrived | in_progress | completed | canceled
   /// Client can cancel with {status:canceled} while pending/assigned.
   Future<Job> updateStatus(String id, String status) async {
     final res = await _dio.post(_n('/api/v1/jobs/$id/status'), data: {'status': status});
@@ -166,11 +166,11 @@ class Job {
   });
 
   factory Job.fromJson(Map<String, dynamic> json) {
-    DateTime? _parseTs(dynamic v) {
+    DateTime? parseTs(dynamic v) {
       if (v == null) return null;
       try { return DateTime.parse(v as String); } catch (_) { return null; }
     }
-    int? _fanOutLen(dynamic v) {
+    int? fanOutLen(dynamic v) {
       if (v is List) return v.length;
       return null;
     }
@@ -182,11 +182,11 @@ class Job {
       price: json['price'] != null ? Price.fromJson(json['price'] as Map<String, dynamic>) : null,
       payment: json['payment'] != null ? PaymentSnapshot.fromJson(json['payment'] as Map<String, dynamic>) : null,
       assignedProviderId: json['assignedProviderId'] as String?,
-      createdAt: _parseTs(json['createdAt'] ?? json['timestamps']?['createdAt']),
-      acceptedAt: _parseTs(json['acceptedAt'] ?? json['timestamps']?['acceptedAt']),
-      completedAt: _parseTs(json['completedAt'] ?? json['timestamps']?['completedAt']),
-      expiresAt: _parseTs(json['expiresAt'] ?? json['offer']?['expiresAt']),
-      fanOutCount: _fanOutLen(json['fanOut']),
+      createdAt: parseTs(json['createdAt'] ?? json['timestamps']?['createdAt']),
+      acceptedAt: parseTs(json['acceptedAt'] ?? json['timestamps']?['acceptedAt']),
+      completedAt: parseTs(json['completedAt'] ?? json['timestamps']?['completedAt']),
+      expiresAt: parseTs(json['expiresAt'] ?? json['offer']?['expiresAt']),
+      fanOutCount: fanOutLen(json['fanOut']),
     );
   }
 }

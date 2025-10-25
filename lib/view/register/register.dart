@@ -595,41 +595,49 @@ class _RegisterFormState extends State<_RegisterForm> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    // Simple setState-based rebuilds; you can swap to Provider/Riverpod later.
-    return Form(
-      key: controller.formKey,
-      child: Column(
-        children: [
-          _firstNameField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _lastNameField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _mobileField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _genderField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _roleField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _idField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _dobField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _emailField(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _passwordField(),
-          const SizedBox(height: 10),
-          _termsRow(),
-          const SizedBox(height: 10),
-          _continueButton(),
-          const SizedBox(height: 5),
-          _loginPrompt(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _orContinueWith(),
-          const SizedBox(height: RegisterController.kFieldSpacing),
-          _socialButtons(),
-          const SizedBox(height: 8),
-        ],
-      ),
+    // Rebuild the form whenever the controller calls notifyListeners().
+    // This ensures server-side validation errors (from onRegister) appear
+    // immediately after pressing "Continue" without needing to re-focus
+    // any input fields. Mirrors the login form's AnimatedBuilder approach.
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Form(
+          key: controller.formKey,
+          child: Column(
+            children: [
+              _firstNameField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _lastNameField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _mobileField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _genderField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _roleField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _idField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _dobField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _emailField(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _passwordField(),
+              const SizedBox(height: 10),
+              _termsRow(),
+              const SizedBox(height: 10),
+              _continueButton(),
+              const SizedBox(height: 5),
+              _loginPrompt(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _orContinueWith(),
+              const SizedBox(height: RegisterController.kFieldSpacing),
+              _socialButtons(),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 }

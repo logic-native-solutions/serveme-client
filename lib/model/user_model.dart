@@ -72,7 +72,7 @@ class UserModel {
   }
 
   String get locationText {
-    final parts = [city, country].where((s) => s != null && (s as String).isNotEmpty);
+    final parts = [city, country].where((s) => s != null && (s).isNotEmpty);
     return parts.join(', ');
   }
 

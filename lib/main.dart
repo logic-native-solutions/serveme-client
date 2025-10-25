@@ -118,7 +118,7 @@ class _AppState extends State<App> {
         '/message': (_) => const MessageScreen(),
         '/booking': (_) => const BookingScreen(),
         '/wallet':(_) => const WalletScreen(),
-        // '/profile': (_) => const ProfileScreen(),
+        '/profile': (_) => const ProfileScreen(),
         '/all-services': (_) => const AllServicesScreen(),
         '/reset': (_) => ResetNewPasswordScreen(resetSession: session),
         // Provider routes

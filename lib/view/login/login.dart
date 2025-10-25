@@ -214,30 +214,37 @@ class _LoginFormState extends State<LoginForm> {
 
   @override
   Widget build(BuildContext context) {
-    // Using setState for simplicity; swap to AnimatedBuilder/ValueListenable if preferred.
-    return AutofillGroup(
-      child: Form(
-        key: controller.formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _emailField(),
-            const SizedBox(height: LoginController.kFieldSpacing),
-            _passwordField(),
-            const SizedBox(height: 8),
-            _rememberForgotRow(),
-            const SizedBox(height: LoginController.kFieldSpacing),
-            _continueButton(),
-            const SizedBox(height: LoginController.kFieldSpacing),
-            _registerLink(),
-            const SizedBox(height: LoginController.kFieldSpacing),
-            _socialDivider(),
-            const SizedBox(height: LoginController.kFieldSpacing),
-            _socialButtons(),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+    // Rebuild the form whenever the controller calls notifyListeners().
+    // This ensures server-side validation errors show immediately after
+    // pressing "Continue" (onLogin), without needing to refocus inputs.
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return AutofillGroup(
+          child: Form(
+            key: controller.formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _emailField(),
+                const SizedBox(height: LoginController.kFieldSpacing),
+                _passwordField(),
+                const SizedBox(height: 8),
+                _rememberForgotRow(),
+                const SizedBox(height: LoginController.kFieldSpacing),
+                _continueButton(),
+                const SizedBox(height: LoginController.kFieldSpacing),
+                _registerLink(),
+                const SizedBox(height: LoginController.kFieldSpacing),
+                _socialDivider(),
+                const SizedBox(height: LoginController.kFieldSpacing),
+                _socialButtons(),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

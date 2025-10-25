@@ -162,7 +162,9 @@ class LoginController extends ChangeNotifier {
     } catch (_) {}
 
     final result = await handler.submitFormDataToServer();
-
+    print(result.success);
+    print(result.emailError);
+    print(result.passwordError);
     if (result.success) {
       token = result.token ?? '';
 

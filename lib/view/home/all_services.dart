@@ -22,11 +22,11 @@ class AllServicesScreen extends StatefulWidget {
 
 class _ServicesScreenState extends State<AllServicesScreen> {
   // Opens a bottom sheet to create a service request for the selected service
-  Future<void> _openRequestSheet(BuildContext context, _Service s) async {
+  Future<void> _openRequestSheet(BuildContext context, Service s) async {
     final theme = Theme.of(context);
     final desc = TextEditingController();
     final scaffold = ScaffoldMessenger.of(context);
-    String? pmId; // optional, can be entered for test: pm_card_visa
+    // String? pmId; // optional, can be entered for test: pm_card_visa
     final Set<String> selectedAddOnIds = <String>{};
     bool submitting = false; // submission state to prevent double taps and show progress
 
@@ -112,6 +112,8 @@ class _ServicesScreenState extends State<AllServicesScreen> {
             initialDate: scheduledAt ?? now,
           );
           if (date == null) return;
+          if (!ctx.mounted) return;
+
           final time = await showTimePicker(
             context: ctx,
             initialTime: TimeOfDay.fromDateTime(scheduledAt ?? now.add(const Duration(hours: 2))),
@@ -272,9 +274,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                         leading: const Icon(Icons.access_time),
                         title: Text(scheduledAt == null
                             ? 'Select date & time'
-                            : MaterialLocalizations.of(context).formatFullDate(scheduledAt!) +
-                                ' · ' +
-                                TimeOfDay.fromDateTime(scheduledAt!).format(context)),
+                            : '${MaterialLocalizations.of(context).formatFullDate(scheduledAt!)} · ${TimeOfDay.fromDateTime(scheduledAt!).format(context)}'),
                         onTap: pickScheduleDateTime,
                         trailing: const Icon(Icons.chevron_right),
                       ),
@@ -343,7 +343,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                                       .timeout(const Duration(seconds: 3))
                                       .catchError((_) {});
 
-                                  if (!mounted) return;
+                                  if (!ctx.mounted) return;
                                   // Close the bottom sheet using the sheet's own BuildContext (ctx),
                                   // not the outer page context. Using the wrong context can pop the
                                   // whole page or fail to close the sheet, leaving the UI stuck.
@@ -393,6 +393,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                                     msg = (data?['message'] as String?) ?? 'Your session has expired. Please log in to continue.';
                                   }
 
+                                  if (!ctx.mounted) return;
                                   // Show a visible dialog above the sheet so users see the error
                                   await showDialog<void>(
                                     context: context,
@@ -404,13 +405,13 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                                       ],
                                     ),
                                   );
-                                  if (!mounted) return;
+                                  if (!ctx.mounted) return;
                                   if (code == 401) {
                                     // Close the sheet and navigate to login for re-auth
                                     Navigator.of(context).pop();
                                     // Small delay to ensure sheet is dismissed before navigation
                                     await Future<void>.delayed(const Duration(milliseconds: 50));
-                                    if (!mounted) return;
+                                    if (!context.mounted) return;
                                     Navigator.of(context).pushNamed('/login');
                                   }
                                 } catch (_) {
@@ -456,7 +457,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
   }
 
   // Backend: loaded services catalog (GET /api/v1/services)
-  List<_Service> _services = [];
+  List<Service> _services = [];
   bool _loading = true;
   String? _error;
 
@@ -492,12 +493,12 @@ class _ServicesScreenState extends State<AllServicesScreen> {
       final list = await api.fetchServices();
       setState(() {
         _services = list
-            .map((s) => _Service.withId(
+            .map((s) => Service.withId(
                   serviceTypeId: s.id,
                   name: s.displayName,
                   icon: _iconForService(s.id),
                   imageAsset: _assetForService(s.id),
-                  addOns: s.addOns.map((a) => _AddOn(id: a.id, label: a.label)).toList(),
+                  addOns: s.addOns.map((a) => AddOn(id: a.id, label: a.label)).toList(),
                 ))
             .toList();
         _loading = false;
@@ -523,7 +524,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
       orElse: () => _services.firstWhere(
         // Try by normalized name as a fallback
         (s) => s.name.toLowerCase().replaceAll(' ', '_') == id,
-        orElse: () => _Service('^none^', Icons.help_outline),
+        orElse: () => Service('^none^', Icons.help_outline),
       ),
     );
     if (match.name != '^none^') {
@@ -537,20 +538,20 @@ class _ServicesScreenState extends State<AllServicesScreen> {
   final TextEditingController _search = TextEditingController();
 
   /// You can replace icons with your asset images if you prefer.
-  final List<_Service> _all = const [
-    _Service('Home Cleaning', Icons.cleaning_services),
-    _Service('Handyman', Icons.handyman),
-    _Service('Plumbing', Icons.plumbing),
-    _Service('Electrical', Icons.electrical_services),
-    _Service('Interior Design', Icons.weekend),
-    _Service('Painting', Icons.format_paint),
-    _Service('Moving', Icons.local_shipping),
-    _Service('Furniture Assembly', Icons.chair_alt),
-    _Service('Smart Home Installation', Icons.device_hub),
-    _Service('Appliance Repair', Icons.build_circle),
-    _Service('Landscaping', Icons.yard),
-    _Service('Pest Control', Icons.bug_report),
-  ];
+  // final List<_Service> _all = const [
+  //   _Service('Home Cleaning', Icons.cleaning_services),
+  //   _Service('Handyman', Icons.handyman),
+  //   _Service('Plumbing', Icons.plumbing),
+  //   _Service('Electrical', Icons.electrical_services),
+  //   _Service('Interior Design', Icons.weekend),
+  //   _Service('Painting', Icons.format_paint),
+  //   _Service('Moving', Icons.local_shipping),
+  //   _Service('Furniture Assembly', Icons.chair_alt),
+  //   _Service('Smart Home Installation', Icons.device_hub),
+  //   _Service('Appliance Repair', Icons.build_circle),
+  //   _Service('Landscaping', Icons.yard),
+  //   _Service('Pest Control', Icons.bug_report),
+  // ];
 
   // final List<_Service> _popular = const [
   //   _Service('Interior Design', Icons.weekend),
@@ -666,7 +667,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Theme.of(context).colorScheme.error.withOpacity(0.35)),
+                    side: BorderSide(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.35)),
                   ),
                   color: Theme.of(context).colorScheme.errorContainer,
                   child: Padding(
@@ -766,11 +767,11 @@ class _SearchField extends StatelessWidget {
         fillColor: theme.colorScheme.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: theme.colorScheme.outline.withOpacity(.3)),
+          borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: .3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: theme.colorScheme.outline.withOpacity(.2)),
+          borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: .2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -782,105 +783,6 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String? action;
-  final VoidCallback? onTap;
-  const _SectionHeader({required this.title, this.action, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final onBg = theme.colorScheme.onBackground;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: onBg,
-            )),
-        if (action != null)
-          InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(6.0),
-              child: Text(action!,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  )),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _PopularCard extends StatelessWidget {
-  final _Service service;
-  const _PopularCard({required this.service});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(18),
-      child: Ink(
-        width: 200,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: theme.colorScheme.surface,
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 16,
-              offset: const Offset(0, 10),
-              color: Colors.black.withOpacity(0.06),
-            )
-          ],
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.colorScheme.surface,
-              theme.colorScheme.primary.withOpacity(.05),
-            ],
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Big icon as decorative background
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Padding(
-                padding: const EdgeInsets.all(14.0),
-                child: Icon(
-                  service.icon,
-                  size: 72,
-                  color: theme.colorScheme.primary.withOpacity(.15),
-                ),
-              ),
-            ),
-            // Title
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                service.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _GridHeader extends StatelessWidget {
   final String title;
@@ -890,7 +792,7 @@ class _GridHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final onBg = theme.colorScheme.onBackground;
+    final onBg = theme.colorScheme.onSurface;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -932,7 +834,7 @@ class _FilterChip extends StatelessWidget {
             : theme.colorScheme.onSurfaceVariant,
       ),
       selectedColor: theme.colorScheme.primary,
-      backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(.6),
+      backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .6),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -941,7 +843,7 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _ServiceCard extends StatefulWidget {
-  final _Service service;
+  final Service service;
   final VoidCallback onTap;
   const _ServiceCard({required this.service, required this.onTap});
 
@@ -969,17 +871,17 @@ class _ServiceCardState extends State<_ServiceCard> {
               color: theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: theme.colorScheme.outline.withOpacity(.15),
+                color: theme.colorScheme.outline.withValues(alpha: .15),
               ),
               boxShadow: [
                 BoxShadow(
                   blurRadius: 18,
                   offset: const Offset(0, 10),
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                 )
               ],
             ),
-            // Full-bleed image with overlayed title for a more appealing card
+            // Full-bleed image with overlay title for a more appealing card
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: Stack(
@@ -992,7 +894,7 @@ class _ServiceCardState extends State<_ServiceCard> {
                     )
                   else
                     Container(
-                      color: theme.colorScheme.surfaceVariant,
+                      color: theme.colorScheme.surfaceContainerHighest,
                       alignment: Alignment.center,
                       child: Icon(
                         widget.service.icon,
@@ -1011,7 +913,7 @@ class _ServiceCardState extends State<_ServiceCard> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.55),
+                            Colors.black.withValues(alpha: 0.55),
                           ],
                         ),
                       ),
@@ -1045,8 +947,8 @@ class _ServiceCardState extends State<_ServiceCard> {
 
 /// Animated grid that fades + slides items in a 2-column layout.
 class SliverAnimatedListGrid extends StatelessWidget {
-  final List<_Service> items;
-  final Widget Function(BuildContext, _Service) builder;
+  final List<Service> items;
+  final Widget Function(BuildContext, Service) builder;
 
   const SliverAnimatedListGrid({
     super.key,
@@ -1117,37 +1019,37 @@ IconData _iconForService(String id) {
   }
 }
 
-const List<_Service> _fallbackServices = [
-  _Service('Home Cleaning', Icons.cleaning_services),
-  _Service('Handyman', Icons.handyman),
-  _Service('Plumbing', Icons.plumbing),
-  _Service('Electrical', Icons.electrical_services),
-  _Service('Interior Design', Icons.weekend),
-  _Service('Painting', Icons.format_paint),
-  _Service('Moving', Icons.local_shipping),
-  _Service('Furniture Assembly', Icons.chair_alt),
-  _Service('Smart Home Installation', Icons.device_hub),
-  _Service('Appliance Repair', Icons.build_circle),
-  _Service('Landscaping', Icons.yard),
-  _Service('Pest Control', Icons.bug_report),
+const List<Service> _fallbackServices = [
+  Service('Home Cleaning', Icons.cleaning_services),
+  Service('Handyman', Icons.handyman),
+  Service('Plumbing', Icons.plumbing),
+  Service('Electrical', Icons.electrical_services),
+  Service('Interior Design', Icons.weekend),
+  Service('Painting', Icons.format_paint),
+  Service('Moving', Icons.local_shipping),
+  Service('Furniture Assembly', Icons.chair_alt),
+  Service('Smart Home Installation', Icons.device_hub),
+  Service('Appliance Repair', Icons.build_circle),
+  Service('Landscaping', Icons.yard),
+  Service('Pest Control', Icons.bug_report),
 ];
 
-class _AddOn {
+class AddOn {
   final String id;
   final String label;
-  const _AddOn({required this.id, required this.label});
+  const AddOn({required this.id, required this.label});
 }
 
-class _Service {
+class Service {
   final String? serviceTypeId; // backend id like plumber, cleaner
   final String name; // display name
   final IconData icon;
   final String? imageAsset; // local asset to match the home screen visual for this service
-  final List<_AddOn> addOns; // available add-ons for this service (from catalog)
-  const _Service(this.name, this.icon, {this.imageAsset})
+  final List<AddOn> addOns; // available add-ons for this service (from catalog)
+  const Service(this.name, this.icon, {this.imageAsset})
       : serviceTypeId = null,
         addOns = const [];
-  const _Service.withId({required this.serviceTypeId, required this.name, required this.icon, this.imageAsset, this.addOns = const []});
+  const Service.withId({required this.serviceTypeId, required this.name, required this.icon, this.imageAsset, this.addOns = const []});
 }
 
 /// Map backend service IDs to the same images used on the client home screen.

@@ -935,3 +935,31 @@ QA Checklist
   • The filter bar is centered and does not change width when switching among All, Active, Sched, Past. ✓
   • Job tiles maintain consistent height/spacing across filters. ✓
   • Dark mode and small devices render correctly; no overflow or clipping. ✓
+
+
+
+7) iOS code signing neutralization (to fix Xcode build on local devices)
+File: ios/Runner.xcodeproj/project.pbxproj
+Summary
+- Removed hardcoded Apple Team ID (A29Y272KQG) by setting DEVELOPMENT_TEAM = "" for all configs (Debug/Release/Profile). This prevents Xcode from requiring a non‑existent team on other machines.
+- Replaced bundle identifiers:
+  - App target: com.logicnativesolutions.client → com.serveme.client
+  - Test target(s): com.logicnativesolutions.client.RunnerTests → com.serveme.client.RunnerTests
+- Kept CODE_SIGN_STYLE = Automatic for tests and did not introduce any manual provisioning profiles.
+
+Why
+- Previous settings referenced a private Apple Developer Team and bundle ID that do not exist on other developer accounts. This blocked device builds with: "No Account for Team ..." and "No profiles for 'com.logicnativesolutions.client' were found".
+
+How to finish signing locally (one‑time per machine)
+1. Open ios/Runner.xcworkspace in Xcode.
+2. Select the Runner project → Runner target → Signing & Capabilities.
+3. Team: pick your personal/team Apple ID (Xcode will create an iOS Development provisioning profile automatically).
+4. Bundle Identifier: you may keep com.serveme.client or set your own unique reverse‑DNS value (e.g., com.yourdomain.serveme). If you change it, ensure it matches across Debug/Release/Profile.
+5. Repeat for the RunnerTests target if you plan to run iOS unit/UI tests.
+
+Tips
+- If you still see signing warnings, choose “Product → Clean Build Folder”, then build again.
+- For distribution (TestFlight/App Store), use your org’s real bundle identifier and configure certificates/profiles in App Store Connect.
+
+Notes
+- These are minimal, repo‑safe changes that let any contributor build and run on a physical device using their own Apple account without leaking org credentials.

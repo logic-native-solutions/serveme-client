@@ -1,7 +1,3 @@
-import 'package:flutter/foundation.dart';
-
-/// Holds field-level error messages & a global message from backend.
-@immutable
 class RegisterErrors {
   String? firstName;
   String? lastName;

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // Make sure you have this setup
 import 'package:http/http.dart' as http;
+import 'package:client/test_data/address_data.dart';
 
 
 class ManualAddressEntryScreen extends StatefulWidget {
@@ -47,7 +48,7 @@ class _ManualAddressEntryScreenState extends State<ManualAddressEntryScreen> {
     });
   }
 
-  InputDecoration _decoration(BuildContext context, String label, {TextInputType? type}) {
+  InputDecoration _decoration(BuildContext context, String label) {
     final theme = Theme.of(context);
     return InputDecoration(
       labelText: label,
@@ -257,7 +258,7 @@ class AddressScreen extends StatelessWidget {
 
 class _AddressScreenBody extends StatefulWidget {
   // Renamed from _AddressScreen
-  const _AddressScreenBody({super.key});
+  const _AddressScreenBody();
 
   @override
   State<_AddressScreenBody> createState() => _AddressScreenBodyState();
@@ -286,30 +287,6 @@ class _AddressScreenBodyState extends State<_AddressScreenBody> {
   // -------------------- Selected Address State --------------------
   String? _currentlySelectedAddressDescription; // To display the chosen address
   LatLng? _currentlySelectedLatLng; // To store coordinates of the selected address
-
-  // -------------------- Previous addresses (static list for now) --------------------
-  final List<Map<String, dynamic>> _previousAddresses = const [
-    {
-      'description': '522 Thabo Sehume, Pretoria',
-      'lat': -25.740,
-      'lng': 28.188
-    }, // Added dummy coords
-    {
-      'description': '456 Lilian Ngoyi, Pretoria',
-      'lat': -25.746,
-      'lng': 28.188
-    },
-    {
-      'description': '231 Minaar St, Pretoria Central, Pretoria, 0002',
-      'lat': -25.750,
-      'lng': 28.190
-    },
-    {
-      'description': '324 Bosman St, Pretoria Central, Pretoria, 0002',
-      'lat': -25.748,
-      'lng': 28.187
-    },
-  ];
 
   @override
   void initState() {
@@ -696,7 +673,7 @@ class _AddressScreenBodyState extends State<_AddressScreenBody> {
             // Make sure SectionTitle is defined
 
             // -------------------- Previous addresses --------------------
-            if (_previousAddresses.isEmpty)
+            if (previousAddresses.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(8.0),
                 child: Text('No previous addresses saved.',
@@ -708,9 +685,9 @@ class _AddressScreenBodyState extends State<_AddressScreenBody> {
                 // Important in a SingleChildScrollView
                 physics: const NeverScrollableScrollPhysics(),
                 // List itself shouldn't scroll
-                itemCount: _previousAddresses.length,
+                itemCount: previousAddresses.length,
                 itemBuilder: (context, index) {
-                  final addrData = _previousAddresses[index];
+                  final addrData = previousAddresses[index];
                   final String addrDescription = addrData['description'] as String;
                   return InfoTile( // Make sure InfoTile is defined
                     icon: Icons.history, // Changed icon
