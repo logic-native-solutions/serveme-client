@@ -12,12 +12,14 @@ import 'package:client/view/profile/profile_screen.dart';
 import 'package:client/view/booking/booking_screen.dart';
 import 'package:client/view/booking/waiting_for_provider.dart';
 import 'package:client/view/wallet/wallet_screen.dart';
+import 'package:client/view/wallet/add_payment_method_screen.dart' as client_wallet;
 import 'package:client/view/provider/dashboard_screen.dart';
 import 'package:client/view/provider/analytics_screen.dart';
 import 'package:client/view/provider/availability_screen.dart';
 import 'package:client/view/provider/payouts_screen.dart';
 import 'package:client/view/provider/withdraw_screen.dart';
 import 'package:client/view/provider/manage_payment_methods_screen.dart';
+import 'package:client/view/wallet/client_payment_methods_screen.dart';
 import 'package:client/view/provider/jobs_screen.dart';
 import 'package:client/view/provider/wallet_screen.dart';
 import 'package:client/view/provider/provider_guard.dart';
@@ -31,6 +33,8 @@ import 'package:flutter_phoenix/flutter_phoenix.dart';
 import 'package:client/service/push_messaging.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:client/view/provider/job_offer_screen.dart';
+import 'package:client/api/paystack_api.dart';
+import 'package:client/service/paystack_sdk.dart';
 
 /// ---------------------------------------------------------------------------
 /// main.dart
@@ -89,6 +93,19 @@ class _AppState extends State<App> {
     });
   }
 
+  // Initialize Paystack SDK using the public key from the server (if available).
+  // This prepares the app for in-app card tokenization (Bolt/Uber style).
+  Future<void> _initPaystackSdk() async {
+    try {
+      final key = await PaystackApi.I.getPaystackPublicKey();
+      if (key != null && key.isNotEmpty) {
+        await PaystackSdkService.I.initOnce(key);
+      }
+    } catch (_) {
+      // Non-fatal: If SDK init fails or key not available, we fall back to redirect flow.
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -96,6 +113,8 @@ class _AppState extends State<App> {
     // Initialize push messaging (FCM) for job offer fan-out handling.
     // This will request permissions, get token, and handle navigation for job_offer payloads.
     unawaited(PushMessaging.I.init(navigatorKey));
+    // Initialize Paystack SDK (if public key is configured on server). Non-blocking.
+    unawaited(_initPaystackSdk());
   }
 
   @override
@@ -118,7 +137,10 @@ class _AppState extends State<App> {
         '/message': (_) => const MessageScreen(),
         '/booking': (_) => const BookingScreen(),
         '/wallet':(_) => const WalletScreen(),
-        '/profile': (_) => const ProfileScreen(),
+        // Client routes
+        '/client/payment-methods': (_) => const ClientPaymentMethodsScreen(),
+        client_wallet.ClientAddPaymentMethodScreen.route: (_) => const client_wallet.ClientAddPaymentMethodScreen(),
+        // '/profile': (_) => const ProfileScreen(),
         '/all-services': (_) => const AllServicesScreen(),
         '/reset': (_) => ResetNewPasswordScreen(resetSession: session),
         // Provider routes

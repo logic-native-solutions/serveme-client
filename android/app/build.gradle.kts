@@ -54,6 +54,13 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // Ensure Paystack SDK classes are kept in release builds
+            isMinifyEnabled = false
+            // If you enable minify in the future, keep rules are already provided.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                file("proguard-rules.pro")
+            )
         }
     }
 }

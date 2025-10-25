@@ -65,6 +65,8 @@ class _HomeScreenBody extends StatefulWidget {
 }
 
 class _HomeScreenBodyState extends State<_HomeScreenBody> {
+  // Tracks whether we've already shown the one-time snackbar for subaccount creation
+  bool _shownSubaccountSnack = false;
   final String _greet = greetingMessage();
   String? _selectedLocation; // set when user picks an address from AddressScreen
 
@@ -99,6 +101,25 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
         );
       }
     }());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // If we were navigated to with a success flag (e.g., after subaccount creation),
+    // show a brief confirmation using the page's ScaffoldMessenger.
+    // To trigger this from any flow, navigate to Home with arguments:
+    // Navigator.pushNamed(context, HomeScreen.route, arguments: { 'subaccountCreated': true });
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (!_shownSubaccountSnack && args is Map && args['subaccountCreated'] == true) {
+      _shownSubaccountSnack = true; // ensure we only show this once per visit
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Subaccount created successfully')),
+        );
+      });
+    }
   }
 
   Future<void> _handleRefresh() async {

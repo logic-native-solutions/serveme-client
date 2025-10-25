@@ -1,4 +1,3 @@
-library;
 
 import 'dart:async';
 
@@ -54,6 +53,10 @@ class ApiClient {
 
     // 👇 add them here
     dio.interceptors.add(CookieManager(jar));
+    // Map upstream proxy 502 validation errors to 400 to avoid confusing the UI.
+    // Some gateways return 502 for upstream validation failures; the backend now
+    // returns 400, but keep this client shim for environments still emitting 502.
+    dio.interceptors.add(_ErrorMappingInterceptor());
     dio.interceptors.add(_AuthInterceptor(dio));
 
     _instance = ApiClient._(dio, jar);
@@ -125,6 +128,51 @@ class ApiClient {
     }
 
     _resetSessionCancelToken();
+  }
+}
+
+class _ErrorMappingInterceptor extends Interceptor {
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final res = err.response;
+    if (res != null && res.statusCode == 502) {
+      final data = res.data;
+      // Heuristics: if body looks like a validation error (common keys),
+      // downgrade 502 → 400 so UI handles it as a user error instead of server down.
+      bool looksLikeValidation = false;
+      if (data is Map) {
+        final m = data.cast<Object?, Object?>();
+        final code = m['code']?.toString().toLowerCase();
+        final message = m['message']?.toString().toLowerCase();
+        looksLikeValidation =
+            code == 'validation_error' ||
+            code == 'upstream_validation_failed' ||
+            (message != null && (message.contains('invalid') || message.contains('required') || message.contains('validation')));
+      } else if (data is String) {
+        final s = data.toLowerCase();
+        looksLikeValidation = s.contains('invalid') || s.contains('required') || s.contains('validation');
+      }
+      if (looksLikeValidation) {
+        final mapped = Response(
+          requestOptions: res.requestOptions,
+          data: res.data,
+          headers: res.headers,
+          isRedirect: res.isRedirect,
+          redirects: res.redirects,
+          statusCode: 400,
+          statusMessage: 'Bad Request (mapped from 502)'.toString(),
+          extra: res.extra,
+        );
+        handler.next(DioException(
+          requestOptions: err.requestOptions,
+          response: mapped,
+          type: DioExceptionType.badResponse,
+          error: err.error,
+        ));
+        return;
+      }
+    }
+    handler.next(err);
   }
 }
 

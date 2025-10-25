@@ -33,9 +33,9 @@ class ProviderWalletScreen extends StatefulWidget {
 }
 
 class _ProviderWalletScreenState extends State<ProviderWalletScreen> {
-  // Live Stripe Connect snapshot and account info for the provider.
-  StripeStatus? _stripe;
-  StripeAccountInfo? _account; // includes balances and recent transactions
+  // Live Paystack linkage status and account snapshot for the provider.
+  StripeStatus? _stripe; // Reusing StripeStatus shape to minimize UI churn
+  PaystackAccountSnapshot? _psAccount; // includes subaccount, balances summary, transactions, settlements
   bool _loading = false;
   String? _error;
 
@@ -51,12 +51,26 @@ class _ProviderWalletScreenState extends State<ProviderWalletScreen> {
       _error = null;
     });
     try {
-      // Paystack: No balances endpoint in client spec; fetch linkage status only.
+      // 1) Fetch Paystack linkage status first.
       final status = await PaystackApi.I.getPaystackStatus();
       if (!mounted) return;
+      _stripe = status; // keep showing banner state consistently
+
+      // 2) If linked, fetch the live account snapshot (subaccount, balances note, transactions, settlements).
+      PaystackAccountSnapshot? snap;
+      if (status.linked) {
+        try {
+          snap = await PaystackApi.I.getAccountSnapshot();
+        } on DioException catch (e) {
+          // If backend says not linked (404), treat as no snapshot without killing the banner state.
+          final code = e.response?.statusCode ?? 0;
+          if (code != 404) rethrow;
+        }
+      }
+
+      if (!mounted) return;
       setState(() {
-        _account = null; // balances not available via Paystack in this client template
-        _stripe = status; // Reuse model for UI compatibility
+        _psAccount = snap; // may be null if not linked or fetch failed gracefully
       });
     } on TimeoutException {
       if (!mounted) return;
@@ -142,6 +156,26 @@ class _ProviderWalletScreenState extends State<ProviderWalletScreen> {
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
+  // Formats ISO 8601 (or YYYY-MM-DD ...) strings into a compact local datetime label.
+  String _formatIsoToLocal(String? iso) {
+    if (iso == null || iso.trim().isEmpty) return '';
+    DateTime? dt;
+    try {
+      dt = DateTime.tryParse(iso);
+    } catch (_) {}
+    if (dt == null) return iso;
+    dt = dt.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  // Returns the left-bottom card title. Uses Paystack subaccount business name when available.
+  String _providerAccountTitle() {
+    final name = _psAccount?.businessName;
+    if (name != null && name.isNotEmpty) return '$name account';
+    return 'Provider account';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -180,10 +214,12 @@ class _ProviderWalletScreenState extends State<ProviderWalletScreen> {
 
               // Balance card: show available balance from Stripe account info (sum of available amounts).
               _BankLikeBalanceCard(
-                balanceLabel: _account != null
-                    ? _formatMinor(_account!.balances.availableTotalMinor, _preferredCurrency(_account!.balances.available))
+                // Show server-provided currency + available amount (minor units → major)
+                balanceLabel: _psAccount != null
+                    ? '${(_psAccount!.balances.currency).toUpperCase()} ' + (_psAccount!.balances.available / 100.0).toStringAsFixed(2)
                     : null,
-                balance: _account != null ? _account!.balances.availableTotalMinor / 100.0 : 0.0,
+                balance: _psAccount != null ? _psAccount!.balances.available / 100.0 : 0.0,
+                accountTitle: _providerAccountTitle(),
               ),
 
               const SizedBox(height: 16),
@@ -247,12 +283,12 @@ class _ProviderWalletScreenState extends State<ProviderWalletScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: (_account != null && _account!.transactions.isNotEmpty)
+                  child: (_psAccount != null && _psAccount!.transactions.isNotEmpty)
                       ? Column(
                           children: [
-                            for (int i = 0; i < _account!.transactions.length; i++) ...[
+                            for (int i = 0; i < _psAccount!.transactions.length; i++) ...[
                               if (i != 0) Divider(height: 1, color: cs.outlineVariant),
-                              _StripeTxnRow(txn: _account!.transactions[i], formatter: _formatMinor, dateFormatter: _formatDate),
+                              _PaystackTxnRow(txn: _psAccount!.transactions[i]),
                             ],
                             Align(
                               alignment: Alignment.centerRight,
@@ -383,6 +419,7 @@ class _StripeStatusBanner extends StatelessWidget {
 
 /// Stripe transaction row bound to StripeBalanceTxn; formats amount (net preferred) and created date.
 class _StripeTxnRow extends StatelessWidget {
+  // NOTE: Kept for reference to previous Stripe-based UI; Paystack row is defined below.
   const _StripeTxnRow({required this.txn, required this.formatter, required this.dateFormatter});
   final StripeBalanceTxn txn;
   final String Function(int minor, String currency) formatter;
@@ -440,13 +477,58 @@ class _Txn {
   const _Txn({required this.title, required this.dateLabel, required this.amount});
 }
 
+/// Paystack transaction row tailored for PaystackAccountSnapshot.transactions.
+/// We assume amounts are minor units (kobo, cents). Positive indicates incoming funds
+/// (customer payments to the subaccount), negative would be unusual for Paystack tx feed
+/// but we keep coloring consistent. Dates prefer paidAt, then createdAt.
+class _PaystackTxnRow extends StatelessWidget {
+  const _PaystackTxnRow({required this.txn});
+  final PaystackTransaction txn;
+
+  String _formatAmount(int minor, String currency) {
+    final code = (currency.isEmpty ? 'ZAR' : currency).toUpperCase();
+    return '$code ${(minor / 100.0).toStringAsFixed(2)}';
+  }
+
+  String _formatIso(String? iso) {
+    if (iso == null || iso.trim().isEmpty) return '';
+    DateTime? dt;
+    try {
+      dt = DateTime.tryParse(iso);
+    } catch (_) {}
+    if (dt == null) return iso;
+    dt = dt.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final title = (txn.description).trim().isEmpty ? 'Transaction' : txn.description.trim();
+    final date = _formatIso(txn.paidAt ?? txn.createdAt);
+    final positive = txn.amount >= 0; // Paystack transaction amounts are typically positive
+    final color = positive ? Colors.green : Colors.red;
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      title: Text(title, style: text.titleMedium),
+      subtitle: Text(date, style: text.bodySmall),
+      trailing: Text(
+        (positive ? '+' : '−') + _formatAmount(txn.amount.abs(), txn.currency),
+        style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: color),
+      ),
+    );
+  }
+}
 
 /// Bank-like balance card used to mirror the client's wallet card visuals.
 /// Full-width, rounded 16, primary background, and onPrimary typography.
 class _BankLikeBalanceCard extends StatelessWidget {
-  const _BankLikeBalanceCard({required this.balance, this.balanceLabel});
+  const _BankLikeBalanceCard({required this.balance, this.balanceLabel, required this.accountTitle});
   final double balance;
   final String? balanceLabel;
+  final String accountTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -505,7 +587,7 @@ class _BankLikeBalanceCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Provider Account',
+                    accountTitle,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: on.withOpacity(0.95),
                       fontWeight: FontWeight.w600,

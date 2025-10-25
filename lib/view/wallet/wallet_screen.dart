@@ -88,76 +88,7 @@ class _WalletScreenState extends State<_WalletScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Banking cards carousel
-          SizedBox(
-            height: 190,
-            child: PageView.builder(
-              controller: _cardsCtrl,
-              onPageChanged: (i) => setState(() => _cardIndex = i),
-              itemCount: _cards.length,
-              itemBuilder: (context, index) {
-                final c = _cards[index];
-                return _WalletCardView(card: c);
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Page dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(_cards.length, (i) {
-              final selected = i == _cardIndex;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 8,
-                width: selected ? 20 : 8,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              );
-            }),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Add Funds + client quick actions (Pay, Cards)
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _onAddFunds,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Funds'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              _QuickAction(
-                icon: Icons.qr_code_scanner,
-                label: 'Pay',
-                onTap: _onPay, // scan & pay or enter code
-              ),
-              const SizedBox(width: 8),
-              _QuickAction(
-                icon: Icons.credit_card,
-                label: 'Cards',
-                onTap: _onManageCards, // manage saved cards
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Balance summary row
-          _BalanceSummary(card: _cards[_cardIndex]),
-
-          const SizedBox(height: 16),
-
-          // Payment Methods (client-focused)
+          // Payment Methods
           Row(
             children: [
               Expanded(
@@ -171,27 +102,20 @@ class _WalletScreenState extends State<_WalletScreen> {
               TextButton.icon(
                 onPressed: _onAddCard,
                 icon: const Icon(Icons.add_card),
-                label: const Text('Add card'),
+                label: const Text('Add payment method'),
               ),
             ],
           ),
-          ..._cards.map((c) => _CardListTile(card: c)),
-
           const SizedBox(height: 8),
-
-          // Auto top-up toggle
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(16),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.credit_card),
+            title: const Text('Manage payment methods'),
+            subtitle: Text(
+              'Add, remove or set default',
+              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
-            child: SwitchListTile(
-              value: _autoTopUp,
-              onChanged: (v) => setState(() => _autoTopUp = v),
-              title: const Text('Auto top-up'),
-              subtitle: const Text('Keep a minimum balance for faster checkout'),
-              secondary: const Icon(Icons.flash_auto),
-            ),
+            onTap: _onManageCards,
           ),
 
           const SizedBox(height: 16),
@@ -249,11 +173,13 @@ class _WalletScreenState extends State<_WalletScreen> {
   }
 
   void _onManageCards() {
-    // TODO: navigate to Payment Methods screen (list cards, set default, remove)
+    // Navigate to the client Payment Methods screen (list cards, set default, remove)
+    Navigator.of(context).pushNamed('/client/payment-methods');
   }
 
   void _onAddCard() {
-    // TODO: show Add Card sheet (card number, expiry, cvc) or route to PSP
+    // Opens the new Add Payment Method screen (client)
+    Navigator.of(context).pushNamed('/client/payment-methods/add');
   }
 }
 

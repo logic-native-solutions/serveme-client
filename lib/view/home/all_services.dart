@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:client/api/services_api.dart';
 import 'package:client/api/jobs_api.dart';
+import 'package:client/api/paystack_api.dart'; // Client in-app payments (Paystack)
+import 'package:client/view/home/current_user.dart'; // Access current user for uid/email
 import 'package:client/view/home/location_store.dart';
 import 'package:client/view/booking/waiting_for_provider.dart';
 import 'package:dio/dio.dart';
@@ -70,11 +72,45 @@ class _ServicesScreenState extends State<AllServicesScreen> {
         }
 
         Future<void> selectPaymentCard() async {
-          // Minimal mock picker that mirrors Wallet cards; replace with real store/API when available
-          final options = [
-            {'id': 'pm_mock_visa_1234', 'label': 'Visa •••• 1234'},
-            {'id': 'pm_mock_mc_8821', 'label': 'Mastercard •••• 8821'},
-          ];
+          // Real picker wired to Paystack saved payment methods for the current user.
+          // Loads clients/{uid}/paymentMethods and lets the user pick one.
+          final user = CurrentUserStore.I.user;
+          if (user == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please wait for your profile to load')),
+            );
+            return;
+          }
+
+          List<ClientPaymentMethod> methods = const [];
+          try {
+            methods = await PaystackApi.I.listClientPaymentMethods(uid: user.id);
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to load payment methods')),
+            );
+            return;
+          }
+
+          if (methods.isEmpty) {
+            // Guide the user to link a card first.
+            final go = await showDialog<bool>(
+              context: ctx,
+              builder: (dCtx) => AlertDialog(
+                title: const Text('No cards found'),
+                content: const Text('Link a card to pay in-app. You can add a card from the Wallet → Payment Methods screen.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.of(dCtx).pop(false), child: const Text('Cancel')),
+                  FilledButton(onPressed: () => Navigator.of(dCtx).pop(true), child: const Text('Add card')),
+                ],
+              ),
+            );
+            if (go == true && context.mounted) {
+              Navigator.of(context).pushNamed('/client/payment-methods');
+            }
+            return;
+          }
+
           final res = await showModalBottomSheet<Map<String, String>>(
             context: ctx,
             showDragHandle: true,
@@ -84,11 +120,14 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                   shrinkWrap: true,
                   children: [
                     const ListTile(title: Text('Select payment card', style: TextStyle(fontWeight: FontWeight.w700))),
-                    for (final o in options)
+                    for (final m in methods)
                       ListTile(
                         leading: const Icon(Icons.credit_card),
-                        title: Text(o['label']!),
-                        onTap: () => Navigator.of(ctx2).pop({'id': o['id']!, 'label': o['label']!}),
+                        title: Text((m.brand != null && m.last4 != null) ? '${m.brand} •••• ${m.last4}' : 'Saved card'),
+                        subtitle: (m.expMonth != null && m.expYear != null)
+                            ? Text('Exp ${m.expMonth}/${m.expYear}')
+                            : null,
+                        onTap: () => Navigator.of(ctx2).pop({'id': m.authorizationCode, 'label': (m.brand != null && m.last4 != null) ? '${m.brand} •••• ${m.last4}' : 'Saved card'}),
                       ),
                   ],
                 ),
@@ -97,6 +136,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
           );
           if (res != null) {
             setSheetStateRef?.call(() {
+              // Store the Paystack authorization_code as our selected payment method id
               selectedPmId = res['id'];
               selectedPmLabel = res['label'];
             });
@@ -310,6 +350,11 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                                     scaffold.showSnackBar(const SnackBar(content: Text('Please select date & time')));
                                     return;
                                   }
+                                  if (selectedPmId == null) {
+                                    // Require a payment card selection for in-app payment
+                                    scaffold.showSnackBar(const SnackBar(content: Text('Please select a payment card')));
+                                    return;
+                                  }
 
                                   // Prevent duplicate taps while submitting
                                   setSheetState(() => submitting = true);
@@ -325,7 +370,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                                     serviceType: s.serviceTypeId!,
                                     description: desc.text.trim().isEmpty ? s.name : desc.text.trim(),
                                     desiredTime: desired,
-                                    paymentMethodId: selectedPmId,
+                                    paymentMethodId: null, // We charge via Paystack with authorization_code
                                     addOnIds: selectedAddOnIds.toList(),
                                     currency: 'ZAR', // default currency expected by backend
                                   );
@@ -333,11 +378,83 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                                   // NOTE: Photo upload is not wired to backend in CreateJobRequest.
                                   // Keep photos local for now and upload to /jobs/{id}/attachments after job creation. TODO.
 
+                                  // 1) Create the job first to obtain jobId and pricing
                                   final job = await JobsApi.I.createJob(req);
-                                  // Attempt to proactively notify nearby providers about the new job.
-                                  // Fire-and-forget with a short timeout so this never blocks navigation.
-                                  // Some backends do this automatically; this call is a no-op if the endpoint is missing.
-                                  // We intentionally ignore errors here and move the user to the waiting screen.
+
+                                  // 1.1) Attach the selected payment method to this job so the backend
+                                  // can place a hold via Paystack for this job. Include uid when available.
+                                  try {
+                                    if (selectedPmId != null) {
+                                      await PaystackApi.I.prepareJobPayment(
+                                        jobId: job.id,
+                                        paymentMethodId: selectedPmId!,
+                                        uid: CurrentUserStore.I.user?.id,
+                                      );
+                                    }
+                                  } catch (_) {
+                                    // Non-fatal: backend can still select a default on charge attempt.
+                                  }
+
+                                  // 2) Compute upfront estimate using job.price.subtotal
+                                  final user = CurrentUserStore.I.user;
+                                  final subtotal = job.price?.subtotal ?? 0;
+                                  final currency = job.price?.currency ?? 'ZAR';
+                                  Map<String, dynamic>? estimate;
+                                  try {
+                                    if (subtotal > 0) {
+                                      // New server: compute upfront pricing/fees via /payments/estimate
+                                      estimate = await PaystackApi.I.estimatePayment(
+                                        basePrice: subtotal,
+                                        currency: currency,
+                                      );
+                                    }
+                                  } catch (_) {
+                                    // Non-fatal; proceed without a detailed breakdown
+                                  }
+
+                                  // 3) Ask user to confirm the charge with a simple summary
+                                  bool proceed = true;
+                                  if (estimate != null && mounted) {
+                                    final total = (estimate['total'] ?? subtotal) as int;
+                                    final fees = (estimate['fees'] ?? 0) as int;
+                                    final msg = 'You will be charged ${(total/100).toStringAsFixed(2)} $currency' +
+                                        (fees > 0 ? ' (includes ${(fees/100).toStringAsFixed(2)} $currency fees).' : '.');
+                                    proceed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (dCtx) => AlertDialog(
+                                            title: const Text('Confirm payment'),
+                                            content: Text(msg),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.of(dCtx).pop(false), child: const Text('Cancel')),
+                                              FilledButton(onPressed: () => Navigator.of(dCtx).pop(true), child: const Text('Continue')),
+                                            ],
+                                          ),
+                                        ) ?? false;
+                                  }
+                                  if (!proceed) {
+                                    setSheetState(() => submitting = false);
+                                    return;
+                                  }
+
+                                  // 4) New server flow: place a hold on the client's selected card for this job
+                                  if (user != null) {
+                                    // Ensure the selected payment method is associated with the job (includes uid)
+                                    try {
+                                      await PaystackApi.I.prepareJobPayment(
+                                        jobId: job.id,
+                                        paymentMethodId: selectedPmId!,
+                                        uid: user.id,
+                                      );
+                                    } catch (_) {}
+
+                                    // Then request the backend to charge (hold) using the saved authorization
+                                    await PaystackApi.I.chargeJobHold(
+                                      jobId: job.id,
+                                      uid: user.id,
+                                    );
+                                  }
+
+                                  // 5) Optionally broadcast to providers (non-blocking)
                                   JobsApi.I
                                       .broadcastJob(job.id)
                                       .timeout(const Duration(seconds: 3))

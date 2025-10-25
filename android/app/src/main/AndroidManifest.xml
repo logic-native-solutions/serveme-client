@@ -35,6 +35,15 @@
                 <data android:scheme="serveme" android:host="reset" />
             </intent-filter>
 
+            <!-- Paystack return deep link: serveme://paystack-return -->
+            <!-- This ensures the app is resumed when the user completes the hosted card flow -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="serveme" android:host="paystack-return" />
+            </intent-filter>
+
             <!-- Optional HTTPS fallback: https://logicnativesolutions.com/reset?token=... -->
             <!-- Enable only if you own the domain and can set Android App Links verification -->
             <!--
@@ -58,6 +67,7 @@
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <!-- or for older devices -->

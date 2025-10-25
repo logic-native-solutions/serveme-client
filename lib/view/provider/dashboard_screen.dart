@@ -519,26 +519,9 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
     final bool enabled = status?.payoutsEnabled == true;
 
     if (linked && enabled) {
-      // Success state: compact banner indicating payouts are ready.
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: cs.primaryContainer,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: cs.outlineVariant),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.verified_rounded, color: cs.onPrimaryContainer),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text('Payouts enabled', style: text.bodyMedium?.copyWith(color: cs.onPrimaryContainer, fontWeight: FontWeight.w600)),
-            ),
-            if (status?.accountId != null)
-              Text(status!.accountId!, style: text.bodySmall?.copyWith(color: cs.onPrimaryContainer.withOpacity(0.8))),
-          ],
-        ),
-      );
+      // Per product requirement: Do not show the green "Payouts enabled" banner on the dashboard.
+      // Wallet screen will continue to display payouts status. Keeping dashboard clean and focused.
+      return const SizedBox.shrink();
     }
 
     // Not linked or not enabled → show CTA card
@@ -702,10 +685,10 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
                               tooltip: 'Notifications',
                             ),
                             const SizedBox(width: 6),
-                            // Profile avatar button: switches to the Profile tab (index 4)
+                            // Profile avatar button: switches to the Profile tab (index 3)
                             GestureDetector(
                               onTap: () {
-                                setState(() => _tabIndex = 4);
+                                setState(() => _tabIndex = 3);
                               },
                               child: AnimatedBuilder(
                                 animation: CurrentUserStore.I,
@@ -880,10 +863,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
             // ------------------------- Wallet tab (index 2) -----------------------
             const ProviderWalletScreen(),
 
-            // ----------------------- Messages tab (index 3) -----------------------
-            const MessageScreen(),
-
-            // ------------------------ Profile tab (index 4) -----------------------
+            // ------------------------ Profile tab (index 3) -----------------------
             const ProviderProfileScreen(),
           ],
         ),
@@ -904,7 +884,6 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
           NavigationDestination(icon: Icon(Icons.work_outline), label: 'Jobs'),
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Messages'),
           NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
       ),

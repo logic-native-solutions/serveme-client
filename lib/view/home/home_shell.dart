@@ -1,5 +1,4 @@
 import 'package:client/view/home/home_screen.dart';
-import 'package:client/view/message/message_screen.dart';
 import 'package:client/view/profile/profile_screen.dart';
 import 'package:client/view/booking/booking_screen.dart';
 import 'package:client/view/wallet/wallet_screen.dart';
@@ -122,7 +121,7 @@ class _HomeShellState extends State<HomeShell> {
                   icon: _AnimatedNavIcon(
                     icon: Icons.calendar_today_outlined,
                     selectedIcon: Icons.calendar_month,
-                    selected: _index == 2,
+                    selected: _index == 1,
                     duration: _kIconAnim,
                   ),
                   label: 'Bookings',
@@ -131,7 +130,7 @@ class _HomeShellState extends State<HomeShell> {
                   icon: _AnimatedNavIcon(
                     icon: Icons.account_balance_wallet_outlined,
                     selectedIcon: Icons.account_balance_wallet_sharp,
-                    selected: _index == 3,
+                    selected: _index == 2,
                     duration: _kIconAnim,
                   ),
                   label: 'Wallet',
@@ -140,7 +139,7 @@ class _HomeShellState extends State<HomeShell> {
                   icon: _AnimatedNavIcon(
                     icon: Icons.person_outline,
                     selectedIcon: Icons.person,
-                    selected: _index == 4,
+                    selected: _index == 3,
                     duration: _kIconAnim,
                   ),
                   label: 'Profile',
