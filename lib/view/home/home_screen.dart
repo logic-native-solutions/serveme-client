@@ -4,7 +4,7 @@ import 'package:client/auth/api_client.dart';
 import 'package:client/auth/role_store.dart';
 import 'package:client/custom/loader.dart';
 import 'package:client/global/greet_user.dart';
-import 'package:client/view/home/provider_section.dart';
+// import 'package:client/view/home/provider_section.dart';
 import 'package:client/view/home/search_service.dart';
 import 'package:client/view/home/service_section.dart';
 import 'package:client/view/profile/address_screen.dart';
@@ -17,6 +17,8 @@ import 'current_user.dart';
 import 'greet_header.dart';
 import 'header_actions.dart';
 import 'location_store.dart';
+import 'home_extras.dart';
+import 'ongoing_request_card.dart';
 
 // =============================================================================
 //  Home: Header + Actions + Advert + CurrentUser store + Screen
@@ -242,9 +244,18 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                           const SizedBox(height: 15),
                           const AdvertSection(),
                           const SizedBox(height: 16),
+                          // Ongoing request is more useful than separate live-tracking; keep only this per product request.
+                          const OngoingRequestCard(),
+                          const SizedBox(height: 12),
+                          const UpcomingBookingsSection(),
+                          const SizedBox(height: 16),
                           const ServicesSection(),
                           const SizedBox(height: 16),
-                          const ProviderSection(),
+                          // Recommended removed to avoid repetition and reduce cognitive load.
+                          const RecentActivitySection(),
+                          const SizedBox(height: 16),
+                          // Education: explain ServeMe's value in a lively, non-static way.
+                          const AppEducationSection(),
                         ],
                       ),
                     ),

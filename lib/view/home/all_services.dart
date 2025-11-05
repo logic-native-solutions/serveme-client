@@ -32,6 +32,18 @@ class _ServicesScreenState extends State<AllServicesScreen> {
     final Set<String> selectedAddOnIds = <String>{};
     bool submitting = false; // submission state to prevent double taps and show progress
 
+    // Hoisted state for the bottom sheet. IMPORTANT: These are declared outside the
+    // sheet builder so they persist across builder rebuilds (e.g., when the user
+    // drags/swipes the sheet to expand). Declaring them inside the builder caused
+    // the selection (like chosen card) to reset on rebuild.
+    String? selectedPmId; // Will be sent as paymentMethodId
+    String? selectedPmLabel; // Human-readable display (e.g., Visa •••• 1234)
+    bool isAsap = true; // Desired time: ASAP (default) or scheduled
+    DateTime? scheduledAt;
+    final List<XFile> photos = <XFile>[]; // Up to 4 photos
+    final ImagePicker picker = ImagePicker();
+    StateSetter? setSheetStateRef; // Provided by StatefulBuilder below
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -40,18 +52,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) {
         final viewInsets = MediaQuery.of(ctx).viewInsets;
-        // Local state used only within the sheet (kept minimal and commented)
-        // Selected payment card (mocked for now, hook up to real wallet later)
-        String? selectedPmId; // Will be sent as paymentMethodId
-        String? selectedPmLabel; // Human-readable display (e.g., Visa •••• 1234)
-        // Desired time: ASAP (default) or scheduled at a specific DateTime
-        bool isAsap = true;
-        DateTime? scheduledAt;
-        // Photos selected by the user (limit to 4). We'll keep them client-side for now.
-        final List<XFile> photos = <XFile>[];
-        final ImagePicker picker = ImagePicker();
-        // StateSetter reference from StatefulBuilder to update the sheet UI from helper functions
-        StateSetter? setSheetStateRef;
+        // Local helper functions use the captured hoisted state and update via setSheetStateRef
 
         Future<void> pickPhotos() async {
           try {
@@ -711,6 +712,9 @@ class _ServicesScreenState extends State<AllServicesScreen> {
             backgroundColor: theme.scaffoldBackgroundColor,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
+            // Ensure back button is visible: set icon/foreground to black per request
+            iconTheme: const IconThemeData(color: Colors.black),
+            foregroundColor: Colors.black,
             title: Text(
               'Services',
               style: theme.textTheme.titleLarge?.copyWith(
@@ -998,62 +1002,76 @@ class _ServiceCardState extends State<_ServiceCard> {
                 )
               ],
             ),
-            // Full-bleed image with overlay title for a more appealing card
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (widget.service.imageAsset != null)
-                    Image.asset(
-                      widget.service.imageAsset!,
-                      fit: BoxFit.cover,
-                    )
-                  else
-                    Container(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        widget.service.icon,
-                        size: 48,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  // Bottom gradient to ensure text legibility over the image
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Container(
-                      height: 64,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.55),
-                          ],
+            // Rollback: show service name as on-image label for View All screen, no caption below to avoid duplication
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (widget.service.imageAsset != null)
+                          Image.asset(
+                            widget.service.imageAsset!,
+                            fit: BoxFit.cover, // Rollback: fill the tile uniformly like the previous design
+                            alignment: Alignment.center,
+                          )
+                        else
+                          Container(
+                            color: theme.colorScheme.surfaceVariant,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              widget.service.icon,
+                              size: 48,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        // Readability gradient at bottom for on-image label
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            height: 72,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.35),
+                                  Colors.black.withOpacity(0.6),
+                                ],
+                                stops: const [0.0, 0.5, 1.0],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        // On-image service name label (bottom-left)
+                        Positioned(
+                          left: 12,
+                          right: 12,
+                          bottom: 12,
+                          child: Text(
+                            widget.service.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              shadows: const [Shadow(color: Colors.black26, blurRadius: 6, offset: Offset(0,1))],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  // Service name placed on top of the image
-                  Positioned(
-                    left: 12,
-                    right: 12,
-                    bottom: 12,
-                    child: Text(
-                      widget.service.name,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                // Removed below-image caption per rollback
+                // FIX: Remove extra bottom spacing so the image fully fills the card without showing a white band.
+                // Previously, this 8px SizedBox created a visible white strip under the image in the grid.
+                // const SizedBox(height: 8),
+              ],
             ),
           ),
         ),

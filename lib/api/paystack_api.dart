@@ -22,7 +22,7 @@ class PaystackApi {
 
   static PaystackApi get I => PaystackApi(ApiClient.I.dio);
 
-  // Holds the last card-link reference initialized by the client.
+  // Holds the last card-link reference initialized by the client or provider.
   // This allows the list screen to verify the session on app resume
   // in environments where webhooks may be delayed or unavailable.
   static String? lastCardLinkReference;
@@ -482,6 +482,131 @@ class PaystackApi {
     final data = res.data is Map<String, dynamic> ? res.data as Map<String, dynamic> : <String, dynamic>{};
     return data;
   }
+  /// Initialize provider card-link (tokenize-only) session.
+  /// Mirrors: POST /api/v1/providers/{uid}/paystack/link-card/init
+  Future<ClientCardLinkInit> initProviderCardLink({
+    required String uid,
+    String? email,
+    int amount = 0,
+    String currency = 'ZAR',
+    bool tokenizeOnly = true,
+    String? callbackUrl,
+    String mode = 'mobile',
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    final cb = callbackUrl ?? 'https://serveme.app/return';
+    final basePayload = <String, dynamic>{
+      if (email != null && email.isNotEmpty) 'email': email,
+      'amount': amount,
+      'currency': currency,
+      'tokenizeOnly': tokenizeOnly,
+      'callbackUrl': cb,
+      'mode': mode,
+    };
+    // 1) Preferred: principal-scoped endpoint without uid in path to avoid 403 from uid mismatch
+    try {
+      final payload = <String, dynamic>{...basePayload, 'uid': uid};
+      final res = await _retry(() => _dio
+          .post(_n('/api/v1/providers/paystack/link-card/init'), data: payload)
+          .timeout(timeout, onTimeout: () {
+        throw TimeoutException('Provider card link init timed out');
+      }));
+      final data = (res.data is Map<String, dynamic>) ? res.data as Map<String, dynamic> : <String, dynamic>{};
+      return ClientCardLinkInit.fromJson(data);
+    } on DioException catch (e) {
+      // Fall back on validation or auth errors
+      final code = e.response?.statusCode ?? 0;
+      if (!(code == 400 || code == 404 || code == 422 || code == 403)) rethrow;
+    }
+    // 2) Legacy: uid in path
+    final res = await _retry(() => _dio
+        .post(_n('/api/v1/providers/$uid/paystack/link-card/init'), data: basePayload)
+        .timeout(timeout, onTimeout: () {
+      throw TimeoutException('Provider card link init timed out');
+    }));
+    final data = (res.data is Map<String, dynamic>) ? res.data as Map<String, dynamic> : <String, dynamic>{};
+    final init = ClientCardLinkInit.fromJson(data);
+    return init;
+  }
+
+  /// List provider saved payment methods (reusable card authorizations).
+  /// Mirrors: GET /api/v1/providers/{uid}/paystack/payment-methods
+  Future<List<ProviderPaymentMethod>> listProviderPaymentMethods({
+    required String uid,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    Response res;
+    // 1) Preferred principal-scoped endpoint (no uid in path) to avoid 403 when server enforces self-access
+    try {
+      res = await _retry(() => _dio
+          .get(_n('/api/v1/providers/paystack/payment-methods'), queryParameters: {'uid': uid})
+          .timeout(timeout, onTimeout: () {
+        throw TimeoutException('Provider payment methods request timed out');
+      }));
+    } on DioException catch (_) {
+      // 2) Fallback: legacy uid-scoped endpoint
+      res = await _retry(() => _dio
+          .get(_n('/api/v1/providers/$uid/paystack/payment-methods'))
+          .timeout(timeout, onTimeout: () {
+        throw TimeoutException('Provider payment methods request timed out');
+      }));
+    }
+    final body = res.data;
+    final items = <ProviderPaymentMethod>[];
+    final list = (body is Map && body['items'] is List)
+        ? body['items'] as List
+        : (body is List) ? body : const [];
+    for (final e in list) {
+      if (e is Map<String, dynamic>) {
+        items.add(ProviderPaymentMethod.fromJson(e));
+      } else if (e is Map) {
+        items.add(ProviderPaymentMethod.fromJson(e.cast<String, dynamic>()));
+      }
+    }
+    return items;
+  }
+
+  /// Create a provider withdrawal request.
+  /// Mirrors: POST /api/v1/providers/{uid}/paystack/withdraw
+  /// Returns the created record id (if provided); server responds 202 Accepted.
+  Future<String?> createProviderWithdraw({
+    required String uid,
+    required int amount,
+    String currency = 'ZAR',
+    required String paymentMethodId,
+    String? note,
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    final basePayload = <String, dynamic>{
+      'amount': amount,
+      'currency': currency,
+      'paymentMethodId': paymentMethodId,
+      if (note != null && note.isNotEmpty) 'note': note,
+    };
+    Response res;
+    // 1) Preferred: principal-scoped endpoint without uid in path
+    try {
+      final payload = <String, dynamic>{...basePayload, 'uid': uid};
+      res = await _retry(() => _dio
+          .post(_n('/api/v1/providers/paystack/withdraw'), data: payload)
+          .timeout(timeout, onTimeout: () {
+        throw TimeoutException('Withdraw request timed out');
+      }));
+    } on DioException catch (_) {
+      // 2) Fallback: legacy uid-in-path endpoint
+      res = await _retry(() => _dio
+          .post(_n('/api/v1/providers/$uid/paystack/withdraw'), data: basePayload)
+          .timeout(timeout, onTimeout: () {
+        throw TimeoutException('Withdraw request timed out');
+      }));
+    }
+    final data = res.data;
+    if (data is Map) {
+      final id = (data['id'] ?? data['recordId'] ?? data['docId'])?.toString();
+      return id?.isNotEmpty == true ? id : null;
+    }
+    return null;
+  }
 }
 
 /// Data transfer objects for the Paystack account snapshot contract.
@@ -702,6 +827,49 @@ class ClientPaymentMethod {
   final String? createdAt; // ISO string saved by server
 
   factory ClientPaymentMethod.fromJson(Map<String, dynamic> json) => ClientPaymentMethod(
+        authorizationCode: (json['authorization_code'] ?? json['id'] ?? json['code'] ?? '').toString(),
+        reusable: (json['reusable'] as bool?) ?? (json['reusable']?.toString() == 'true'),
+        brand: json['brand']?.toString(),
+        last4: json['last4']?.toString(),
+        expMonth: (json['exp_month'] ?? json['expMonth'])?.toString(),
+        expYear: (json['exp_year'] ?? json['expYear'])?.toString(),
+        bank: json['bank']?.toString(),
+        countryCode: (json['country_code'] ?? json['countryCode'])?.toString(),
+        channel: json['channel']?.toString(),
+        email: json['email']?.toString(),
+        createdAt: (json['createdAt'] ?? json['created_at'])?.toString(),
+      );
+}
+
+/// Provider saved payment method DTO — mirrors client but stored under providers/{uid}/paymentMethods
+class ProviderPaymentMethod {
+  ProviderPaymentMethod({
+    required this.authorizationCode,
+    required this.reusable,
+    this.brand,
+    this.last4,
+    this.expMonth,
+    this.expYear,
+    this.bank,
+    this.countryCode,
+    this.channel,
+    this.email,
+    this.createdAt,
+  });
+
+  final String authorizationCode;
+  final bool reusable;
+  final String? brand;
+  final String? last4;
+  final String? expMonth;
+  final String? expYear;
+  final String? bank;
+  final String? countryCode;
+  final String? channel;
+  final String? email;
+  final String? createdAt; // ISO string saved by server
+
+  factory ProviderPaymentMethod.fromJson(Map<String, dynamic> json) => ProviderPaymentMethod(
         authorizationCode: (json['authorization_code'] ?? json['id'] ?? json['code'] ?? '').toString(),
         reusable: (json['reusable'] as bool?) ?? (json['reusable']?.toString() == 'true'),
         brand: json['brand']?.toString(),

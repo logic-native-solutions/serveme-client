@@ -1,4 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:client/api/paystack_api.dart';
+import 'package:client/service/paystack_sdk.dart';
+import 'package:client/view/home/current_user.dart';
 
 /// ManagePaymentMethodsScreen
 /// ---------------------------
@@ -14,16 +19,111 @@ import 'package:flutter/material.dart';
 ///   last4/expiry for cards, bankName for bank accounts, isDefault.
 /// - Tapping the edit icon should open a dedicated edit screen or bottom sheet.
 /// - "Add Payment Method" navigates to [AddPaymentMethodScreen].
-class ManagePaymentMethodsScreen extends StatelessWidget {
+class ManagePaymentMethodsScreen extends StatefulWidget {
   const ManagePaymentMethodsScreen({super.key});
 
   static const String route = '/provider/payouts/methods';
 
-  // Mocked list of methods — replace with store/API.
-  final List<_Method> _methods = const [
-    _Method(id: 'm1', type: _MethodType.bank, label: 'Checking Account', subtitle: 'Bank of America'),
-    _Method(id: 'm2', type: _MethodType.card, label: 'Debit Card', subtitle: 'Expires 08/2026'),
-  ];
+  @override
+  State<ManagePaymentMethodsScreen> createState() => _ManagePaymentMethodsScreenState();
+}
+
+class _ManagePaymentMethodsScreenState extends State<ManagePaymentMethodsScreen> with WidgetsBindingObserver {
+  bool _loading = false;
+  String? _error;
+  List<ProviderPaymentMethod> _methods = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Defer to next microtask to allow CurrentUserStore to initialize if needed
+    scheduleMicrotask(_load);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _onResumeCheck();
+    }
+  }
+
+  Future<void> _onResumeCheck() async {
+    // If we initiated a card link, verify session then reload methods.
+    final ref = PaystackApi.lastCardLinkReference;
+    if (ref == null || ref.isEmpty) {
+      // Still reload to reflect any webhook-based changes
+      unawaited(_load());
+      return;
+    }
+    try {
+      await PaystackApi.I.verifyPaymentSession(reference: ref);
+    } catch (_) {
+      // Non-fatal; proceed to reload list
+    } finally {
+      PaystackApi.lastCardLinkReference = null; // clear sticky state
+      unawaited(_load());
+    }
+  }
+
+  Future<void> _load() async {
+    final user = CurrentUserStore.I.user;
+    if (user == null || user.id.isEmpty) return;
+    setState(() { _loading = true; _error = null; });
+    try {
+      final items = await PaystackApi.I.listProviderPaymentMethods(uid: user.id);
+      if (!mounted) return;
+      setState(() { _methods = items; });
+    } catch (e) {
+      if (!mounted) return;
+      // Silent fallback to empty list to avoid noisy snackbars on auto-refresh
+      // (e.g., right after starting Add Payment Method).
+      setState(() { _methods = const []; });
+      // Log for diagnostics without disrupting UX
+      debugPrint('ManagePaymentMethodsScreen: refresh methods failed: $e');
+    } finally {
+      if (mounted) setState(() { _loading = false; });
+    }
+  }
+
+  Future<void> _startLinkCard() async {
+    final user = CurrentUserStore.I.user;
+    if (user == null || user.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please sign in first.')));
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      final init = await PaystackApi.I.initProviderCardLink(
+        uid: user.id,
+        email: user.email.isNotEmpty ? user.email : null,
+        amount: 0,
+      );
+      PaystackApi.lastCardLinkReference = init.reference;
+      final url = Uri.tryParse(init.authorizationUrl);
+      if (url == null) throw Exception('Invalid authorization URL');
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw Exception('Could not open browser');
+      }
+      // Give webhook time; then refresh when user returns.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Return to app after completing card link.')));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _error = 'Failed to start card link: $e'; });
+    } finally {
+      if (mounted) setState(() { _loading = false; });
+      // Attempt refresh regardless to catch fast webhooks
+      unawaited(_load());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +138,13 @@ class ManagePaymentMethodsScreen extends StatelessWidget {
         ),
         centerTitle: false,
         title: const Text('Manage Payment Methods'),
+        actions: [
+          IconButton(
+            onPressed: _loading ? null : _load,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -45,6 +152,18 @@ class ManagePaymentMethodsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_error != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
+                ),
+                const SizedBox(height: 12),
+              ],
               Text(
                 'Linked Payment Methods',
                 style: text.titleLarge?.copyWith(
@@ -55,7 +174,6 @@ class ManagePaymentMethodsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // Methods list
               Expanded(
                 child: Card(
                   elevation: 0,
@@ -64,40 +182,48 @@ class ManagePaymentMethodsScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(color: cs.outlineVariant),
                   ),
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    itemCount: _methods.length,
-                    separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant),
-                    itemBuilder: (context, index) {
-                      final m = _methods[index];
-                      return ListTile(
-                        leading: _MethodIcon(type: m.type),
-                        title: Text(m.label, style: text.titleMedium),
-                        subtitle: Text(m.subtitle, style: text.bodySmall),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: () {
-                            // TODO: Navigate to an edit screen or open a sheet
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Edit method placeholder')), 
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : (_methods.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Text('No payment methods yet. Tap Add to link a card.'),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              itemCount: _methods.length,
+                              separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant),
+                              itemBuilder: (context, index) {
+                                final m = _methods[index];
+                                final title = (m.brand ?? 'Card') + (m.last4 != null && m.last4!.isNotEmpty ? ' •••• ${m.last4}' : '');
+                                final subtitle = [
+                                  if (m.expMonth != null && m.expYear != null) 'Exp ${m.expMonth}/${m.expYear}',
+                                  if (m.bank != null && m.bank!.isNotEmpty) m.bank!,
+                                ].join(' • ');
+                                return ListTile(
+                                  leading: const _MethodIcon(type: _MethodType.card),
+                                  title: Text(title, style: text.titleMedium),
+                                  subtitle: Text(subtitle, style: text.bodySmall),
+                                );
+                              },
+                            )),
                 ),
               ),
 
               const SizedBox(height: 12),
 
-              // Add Payment Method button
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed(AddPaymentMethodScreen.route);
-                  },
+                  onPressed: _loading
+                      ? null
+                      : () async {
+                          final res = await Navigator.of(context).pushNamed(AddPaymentMethodScreen.route);
+                          // Refresh list after returning from add flow
+                          if (mounted) unawaited(_load());
+                        },
                   child: const Text('Add Payment Method'),
                 ),
               ),
@@ -155,6 +281,7 @@ class AddPaymentMethodScreen extends StatefulWidget {
 
 class _AddPaymentMethodScreenState extends State<AddPaymentMethodScreen> {
   bool _bankSelected = true; // toggle between Bank Account and Debit Card
+  bool _loading = false;
 
   // Simple controllers; in production consider a form package or validators
   final _holderCtrl = TextEditingController();
@@ -176,6 +303,87 @@ class _AddPaymentMethodScreenState extends State<AddPaymentMethodScreen> {
     _expCtrl.dispose();
     _cvvCtrl.dispose();
     super.dispose();
+  }
+
+  /// Starts the secure card-link flow for providers, mirroring the client flow.
+  /// Tries in-app Paystack SDK with accessCode first; falls back to opening the
+  /// authorizationUrl in the external browser. On success, pops this screen so
+  /// the list can refresh on return.
+  Future<void> _startSecureLinkFlow() async {
+    final user = CurrentUserStore.I.user;
+    if (user == null || user.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in first.')),
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      // Initialize SDK if a public key is available.
+      bool sdkReady = false;
+      try {
+        final pk = await PaystackApi.I.getPaystackPublicKey();
+        if (pk != null && pk.isNotEmpty) {
+          await PaystackSdkService.I.initOnce(pk);
+          sdkReady = true;
+        }
+      } catch (_) {
+        sdkReady = false;
+      }
+
+      // Ask server to create a tokenize-only session and return accessCode/URL.
+      final init = await PaystackApi.I.initProviderCardLink(
+        uid: user.id,
+        email: user.email.isNotEmpty ? user.email : null,
+        amount: 0,
+      );
+      // Remember reference for fallback verification after redirect
+      PaystackApi.lastCardLinkReference = init.reference;
+
+      if (sdkReady && (init.accessCode != null && init.accessCode!.isNotEmpty)) {
+        final ok = await PaystackSdkService.I.checkoutWithAccessCode(
+          context: context,
+          accessCode: init.accessCode!,
+          email: user.email,
+        );
+        if (ok) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Card linked successfully.')),
+          );
+          Navigator.of(context).pop(true);
+          return;
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Opening secure card page...')),
+          );
+        }
+        // Continue to open authorization URL fallback below.
+      }
+
+      // Fallback to authorization URL in a browser view.
+      final url = Uri.tryParse(init.authorizationUrl);
+      if (url == null) {
+        throw Exception('Invalid authorization URL');
+      }
+      final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!opened) {
+        throw Exception('Could not open browser');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Complete card linking, then return to the app.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start card link: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -236,14 +444,20 @@ class _AddPaymentMethodScreenState extends State<AddPaymentMethodScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    // TODO: Validate and POST to /api/v1/provider/payouts/methods
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Payment method added (mock)')),
-                    );
-                    Navigator.of(context).maybePop();
-                  },
-                  child: const Text('Add Payment Method'),
+                  onPressed: _loading
+                      ? null
+                      : () async {
+                          if (_bankSelected) {
+                            // For Paystack ZA provider wallet we only support card linking for now.
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Bank account coming soon. Please link a debit/credit card.')),
+                            );
+                            setState(() => _bankSelected = false);
+                            return;
+                          }
+                          await _startSecureLinkFlow();
+                        },
+                  child: _loading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Add Payment Method'),
                 ),
               ),
             ],

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:client/api/jobs_api.dart';
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'dart:ui' as ui show lerpDouble;
 
 /// WaitingForProviderScreen
 /// - Minimal client-side waiting screen after creating a job.
@@ -67,10 +69,11 @@ class _WaitingForProviderScreenState extends State<WaitingForProviderScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const SizedBox(height: 24),
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: cs.primaryContainer,
-              child: Icon(Icons.watch_later_outlined, color: cs.onPrimaryContainer, size: 36),
+            // Animated hero visual while we look for a provider (subtle, theme-aware)
+            SizedBox(
+              height: 200,
+              width: 200,
+              child: _SearchingPulse(icon: Icons.watch_later_outlined),
             ),
             const SizedBox(height: 16),
             Text('Waiting for a provider…', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
@@ -97,6 +100,121 @@ class _WaitingForProviderScreenState extends State<WaitingForProviderScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Animated pulse + orbiting dots to convey "searching" state similar to ride-hailing apps
+/// - Theme-aware colors (uses ColorScheme)
+/// - Lightweight: CustomPainter + two AnimationControllers
+/// - Avoids heavy rebuilds by painting based on animation values
+class _SearchingPulse extends StatefulWidget {
+  final IconData icon;
+  const _SearchingPulse({required this.icon});
+
+  @override
+  State<_SearchingPulse> createState() => _SearchingPulseState();
+}
+
+class _SearchingPulseState extends State<_SearchingPulse> with TickerProviderStateMixin {
+  late final AnimationController _pulseCtrl; // drives radial pulse (0..1)
+  late final AnimationController _orbitCtrl; // drives dot rotation (0..1)
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
+    _orbitCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _orbitCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // Use AnimatedBuilder to repaint CustomPaint when animations tick
+    return AnimatedBuilder(
+      animation: Listenable.merge([_pulseCtrl, _orbitCtrl]),
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _PulsePainter(
+            pulseT: _pulseCtrl.value,
+            orbitT: _orbitCtrl.value,
+            ringColor: cs.primary.withOpacity(0.25),
+            orbitDotColor: cs.primary,
+          ),
+          child: Center(
+            child: Container(
+              height: 64,
+              width: 64,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  // subtle glow that works in dark and light modes
+                  BoxShadow(color: cs.primary.withOpacity(0.25), blurRadius: 16, spreadRadius: 2),
+                ],
+              ),
+              child: Icon(widget.icon, color: cs.onPrimaryContainer, size: 32),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PulsePainter extends CustomPainter {
+  final double pulseT; // 0..1 for pulse expansion
+  final double orbitT; // 0..1 for rotation angle
+  final Color ringColor;
+  final Color orbitDotColor;
+
+  _PulsePainter({required this.pulseT, required this.orbitT, required this.ringColor, required this.orbitDotColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxR = size.shortestSide / 2; // keep rings within the box
+
+    final paintRing = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = ringColor;
+
+    // Draw 3 expanding rings with staggered phases for a continuous wave effect
+    for (int i = 0; i < 3; i++) {
+      final phase = (pulseT + i / 3) % 1.0;
+      final r = ui.lerpDouble(24, maxR, phase)!; // ring radius from near center to edge
+      final alpha = (1 - phase) * 0.8; // fade out as it expands
+      paintRing.color = ringColor.withOpacity(alpha.clamp(0, 1));
+      canvas.drawCircle(center, r, paintRing);
+    }
+
+    // Orbiting dots around a mid-radius circle to imply searching
+    final orbitR = maxR * 0.7;
+    final dotPaint = Paint()..color = orbitDotColor;
+    const dotCount = 4;
+    for (int i = 0; i < dotCount; i++) {
+      final angle = (orbitT + i / dotCount) * 2 * 3.1415926535; // radians
+      final dx = center.dx + orbitR * MathCos(angle);
+      final dy = center.dy + orbitR * MathSin(angle);
+      canvas.drawCircle(Offset(dx, dy), 4, dotPaint);
+    }
+  }
+
+  // Inline fast approximations for cos/sin to avoid importing dart:math repeatedly in paint
+  double MathSin(double x) => math.sin(x);
+  double MathCos(double x) => math.cos(x);
+
+  @override
+  bool shouldRepaint(covariant _PulsePainter oldDelegate) {
+    return oldDelegate.pulseT != pulseT || oldDelegate.orbitT != orbitT ||
+        oldDelegate.ringColor != ringColor || oldDelegate.orbitDotColor != orbitDotColor;
   }
 }
 

@@ -73,6 +73,8 @@
     <!-- or for older devices -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Android 13+ runtime permission for notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

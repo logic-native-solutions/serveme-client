@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	 Enable Apple Push Notifications (APNs) entitlement for iOS builds.
+	 Xcode will embed this file during code signing. Ensure your provisioning
+	 profile has Push Notifications enabled. For Debug builds on device,
+	 "development" is appropriate. For App Store/TestFlight, change to
+	 "production" or configure per‑configuration entitlements in Xcode.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

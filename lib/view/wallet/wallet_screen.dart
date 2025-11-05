@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' show FontFeature;
+// Added: access saved client cards to render under Manage your cards
+import 'package:client/api/paystack_api.dart';
+import 'package:client/view/home/current_user.dart';
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
@@ -20,6 +24,8 @@ class _WalletScreen extends StatefulWidget {
 enum _TxFilter { all, inOnly, outOnly }
 
 class _WalletScreenState extends State<_WalletScreen> {
+  // Reload ticker to refresh the cards list FutureBuilder when actions complete
+  int _reloadTick = 0;
   final PageController _cardsCtrl = PageController();
   int _cardIndex = 0;
   _TxFilter _filter = _TxFilter.all;
@@ -51,6 +57,8 @@ class _WalletScreenState extends State<_WalletScreen> {
   ];
 
   Future<void> _onRefresh() async {
+    // Refresh hook now also triggers a reload of saved cards shown below
+    setState(() { _reloadTick++; });
     // TODO: hook to your repository refresh
     await Future<void>.delayed(const Duration(milliseconds: 600));
   }
@@ -81,83 +89,27 @@ class _WalletScreenState extends State<_WalletScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          // Page title
+          // Page title (renamed to avoid confusion and duplication with lower actions)
           Text(
-            'Wallet',
+            'Payment methods',
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
 
-          // Payment Methods
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Payment Methods',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: _onAddCard,
-                icon: const Icon(Icons.add_card),
-                label: const Text('Add payment method'),
-              ),
-            ],
-          ),
+
+          const SizedBox(height: 16),
+
+          // Cards-only revamp: remove transaction history for client
           const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.credit_card),
-            title: const Text('Manage payment methods'),
-            subtitle: Text(
-              'Add, remove or set default',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-            onTap: _onManageCards,
+          _CardsOnlyEmptyState(
+            onAddCard: _onAddCard,
+            onManage: _onManageCards,
           ),
 
           const SizedBox(height: 16),
 
-          // Transaction header + filter
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Transactions',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              SegmentedButton<_TxFilter>(
-                segments: const [
-                  ButtonSegment(value: _TxFilter.all, label: Text('All')),
-                  ButtonSegment(value: _TxFilter.inOnly, label: Text('In')),
-                  ButtonSegment(value: _TxFilter.outOnly, label: Text('Out')),
-                ],
-                selected: <_TxFilter>{_filter},
-                onSelectionChanged: (s) => setState(() => _filter = s.first),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          if (_visibleTx.isEmpty)
-            _EmptyList(
-              icon: Icons.receipt_long,
-              title: 'No transactions yet',
-              subtitle: 'Top up your wallet or make your first booking.',
-              cta: TextButton.icon(
-                onPressed: _onAddFunds,
-                icon: const Icon(Icons.add_card),
-                label: const Text('Add funds'),
-              ),
-            )
-          else
-            ..._visibleTx.map((t) => _TxTile(t: t)),
+          // Display saved cards stacked below the management panel
+          _ClientCardsStack(reloadTick: _reloadTick),
         ],
       ),
     );
@@ -172,18 +124,306 @@ class _WalletScreenState extends State<_WalletScreen> {
     // TODO: navigate to Pay flow (QR scan / enter code / pick provider)
   }
 
-  void _onManageCards() {
+  Future<void> _onManageCards() async {
     // Navigate to the client Payment Methods screen (list cards, set default, remove)
-    Navigator.of(context).pushNamed('/client/payment-methods');
+    final res = await Navigator.of(context).pushNamed('/client/payment-methods');
+    // After returning, refresh the inline cards stack so users don't have to pull to refresh
+    if (mounted) {
+      setState(() { _reloadTick++; });
+    }
   }
 
-  void _onAddCard() {
+  Future<void> _onAddCard() async {
     // Opens the new Add Payment Method screen (client)
-    Navigator.of(context).pushNamed('/client/payment-methods/add');
+    final res = await Navigator.of(context).pushNamed('/client/payment-methods/add');
+    // After returning from the add flow, refresh the inline cards stack to show newly linked card(s)
+    if (mounted) {
+      setState(() { _reloadTick++; });
+    }
   }
 }
 
 // ---------- Components ----------
+
+/// _ClientCardsStack
+/// ------------------
+/// Fetches the current client's saved cards and renders them as a neat
+/// vertical stack of card widgets (brand + last4 + expiry). It is designed
+/// to be lightweight and self-contained for the Wallet screen entry point.
+class _ClientCardsStack extends StatefulWidget {
+  const _ClientCardsStack({required this.reloadTick});
+  final int reloadTick; // bump to force re-fetch
+
+  @override
+  State<_ClientCardsStack> createState() => _ClientCardsStackState();
+}
+
+class _ClientCardsStackState extends State<_ClientCardsStack> {
+  late Future<List<ClientPaymentMethod>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ClientCardsStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reloadTick != widget.reloadTick) {
+      setState(() {
+        _future = _load();
+      });
+    }
+  }
+
+  Future<List<ClientPaymentMethod>> _load() async {
+    final user = CurrentUserStore.I.user;
+    if (user == null || user.id.isEmpty) {
+      return const [];
+    }
+    try {
+      final items = await PaystackApi.I.listClientPaymentMethods(uid: user.id);
+      return items;
+    } catch (_) {
+      // For the wallet entry, swallow errors and render a quiet empty state.
+      return const [];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return FutureBuilder<List<ClientPaymentMethod>>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+              ),
+            ),
+          );
+        }
+        final items = snap.data ?? const [];
+        if (items.isEmpty) {
+          // No cards linked yet; keep UI minimal to avoid duplication with the panel above.
+          return const SizedBox.shrink();
+        }
+
+        // Render visually appealing stacked cards
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Your cards',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            ...items.map((m) => _ClientMiniCard(method: m)).toList(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Compact, modern card widget used in the stack
+class _ClientMiniCard extends StatelessWidget {
+  const _ClientMiniCard({required this.method});
+  final ClientPaymentMethod method;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final brand = (method.brand?.isNotEmpty == true) ? method.brand! : 'Card';
+    final last4 = method.last4 ?? '••••';
+    final exp = _formatExp(method.expMonth, method.expYear);
+
+    // Derive a consistent, brand-based gradient using theme colors so the card feels native.
+    final gradient = _brandGradient(cs, brand: brand, seed: last4);
+
+    // Compose a realistic credit card surface using an AspectRatio and layered decorations.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withValues(alpha: 0.12),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: AspectRatio(
+            aspectRatio: 1.58, // Typical credit card ratio ~85.60mm × 53.98mm
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: gradient,
+              ),
+              child: Stack(
+                children: [
+                  // Subtle radial highlight for modern look
+                  Positioned(
+                    right: -40,
+                    top: -40,
+                    child: Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: cs.onPrimary.withValues(alpha: 0.06),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Top row: brand label and contactless indicator
+                        Row(
+                          children: [
+                            _BrandBadge(brand: brand, color: cs.onPrimary),
+                            const Spacer(),
+                            Icon(Icons.nfc, color: cs.onPrimary.withValues(alpha: 0.9), size: 20),
+                          ],
+                        ),
+                        const Spacer(),
+                        // Middle: simulated chip
+                        Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: cs.onPrimary.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: cs.onPrimary.withValues(alpha: 0.28), width: 1),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Card number (masked) using tabular figures for realism
+                        Text(
+                          _maskedNumber(last4),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: cs.onPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        // Footer: Expiry and reusable badge
+                        Row(
+                          children: [
+                            if (exp.isNotEmpty)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('VALID THRU', style: theme.textTheme.labelSmall?.copyWith(color: cs.onPrimary.withValues(alpha: 0.8), letterSpacing: 1.1)),
+                                  const SizedBox(height: 2),
+                                  Text(exp, style: theme.textTheme.bodyMedium?.copyWith(color: cs.onPrimary, fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            const Spacer(),
+                            if (method.reusable)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: cs.onPrimary.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: cs.onPrimary.withValues(alpha: 0.22)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.check_circle, size: 16, color: cs.onPrimary),
+                                    const SizedBox(width: 6),
+                                    Text('Reusable', style: theme.textTheme.labelSmall?.copyWith(color: cs.onPrimary, fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Format MM/YY nicely; returns '' if missing
+  static String _formatExp(String? m, String? y) {
+    final mm = m?.trim();
+    final yy = y?.trim();
+    if (mm == null || mm.isEmpty || yy == null || yy.isEmpty) return '';
+    final mm2 = mm.padLeft(2, '0');
+    final yy2 = yy.length == 4 ? yy.substring(2) : yy.padLeft(2, '0');
+    return '$mm2/$yy2';
+  }
+
+  // Create a masked number like "••••  ••••  ••••  1234"
+  static String _maskedNumber(String last4) {
+    final l4 = last4.padLeft(4, '•');
+    return '••••  ••••  ••••  $l4';
+  }
+
+  // Select a pleasing gradient based on brand/seed while respecting theme.
+  // Updated: Always use the app's primary green for client cards to match the design direction.
+  static Gradient _brandGradient(ColorScheme cs, {required String brand, required String seed}) {
+    // We intentionally ignore brand/seed here to keep a consistent green look
+    // across all cards, leveraging the app theme so dark mode stays correct.
+    final c1 = cs.primary.withValues(alpha: 0.98);
+    // Use primaryContainer as a softer companion for a modern gradient.
+    final c2 = cs.primaryContainer.withValues(alpha: 0.90);
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [c1, c2],
+    );
+  }
+}
+
+// Small brand badge rendered on the card face to indicate network
+class _BrandBadge extends StatelessWidget {
+  const _BrandBadge({required this.brand, required this.color});
+  final String brand;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = brand.toUpperCase();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(text, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
+    );
+  }
+}
 
 class _WalletCardView extends StatelessWidget {
   const _WalletCardView({required this.card});
@@ -468,6 +708,77 @@ class _TxTile extends StatelessWidget {
             SafeArea(top: false, child: SizedBox(height: 4)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CardsOnlyEmptyState extends StatelessWidget {
+  const _CardsOnlyEmptyState({required this.onAddCard, required this.onManage});
+  final VoidCallback onAddCard;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.credit_card, color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Manage your cards', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Link a debit/credit card to pay securely in-app. Remove cards any time.',
+                      style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onAddCard,
+                  icon: const Icon(Icons.add_card),
+                  label: const Text('Add card'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onManage,
+                  icon: const Icon(Icons.credit_card_rounded),
+                  label: const Text('Manage cards'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -162,9 +163,12 @@ class LoginController extends ChangeNotifier {
     } catch (_) {}
 
     final result = await handler.submitFormDataToServer();
-    print(result.success);
-    print(result.emailError);
-    print(result.passwordError);
+    // NOTE(junie): Avoid ambiguous console logs like "flutter: true" or "flutter: null" by
+    // always adding context labels and gating logs to debug-only. This prevents confusion
+    // during QA where unlabeled prints look like random booleans.
+    if (kDebugMode) {
+      debugPrint('[Login] success=${result.success} emailError=${result.emailError} passwordError=${result.passwordError}');
+    }
     if (result.success) {
       token = result.token ?? '';
 

@@ -6,6 +6,7 @@ import 'package:client/static/load_env.dart';
 import 'package:client/view/forgot_password/reset_new_password_screen.dart';
 import 'package:client/view/home/all_services.dart';
 import 'package:client/view/home/home_shell.dart';
+import 'package:client/view/tracking/tracking_map_screen.dart';
 import 'package:client/view/message/message_screen.dart';
 import 'package:client/view/otp/otp.dart';
 import 'package:client/view/profile/profile_screen.dart';
@@ -175,6 +176,11 @@ class _AppState extends State<App> {
                 sessionId: sessionId,
                 backendBaseUrl: backendBaseUrl,
               ),
+              settings: settings,
+            );
+          case TrackingMapScreen.route:
+            return MaterialPageRoute(
+              builder: (_) => const TrackingMapScreen(),
               settings: settings,
             );
           case WaitingForProviderScreen.route:

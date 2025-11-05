@@ -48,6 +48,12 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
+	<!-- Enable background remote notifications so FCM can wake the app to process data messages -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+
 	<key>CFBundleURLTypes</key>
     <array>
       <dict>

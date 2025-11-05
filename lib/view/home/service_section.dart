@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:client/api/services_api.dart';
 
-/// Home → Services section
-/// Replaces static placeholder categories with real services from the backend.
-/// Uses the same image assets as the home design (mapped by serviceType id).
+/// Home → Services section (visual refresh)
+/// - Modernized tiles with subtle gradient overlays and price hint.
+/// - Theme-aware to look great in dark mode.
 class ServicesSection extends StatelessWidget {
   const ServicesSection({super.key});
 
@@ -41,6 +41,7 @@ class ServicesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Row(
@@ -54,14 +55,14 @@ class ServicesSection extends StatelessWidget {
                 ),
               ),
             ),
-            TextButton(
+            TextButton.icon(
               onPressed: () => Navigator.pushNamed(context, '/all-services'),
-              child: Text(
+              icon: const Icon(Icons.grid_view_rounded, size: 18),
+              label: Text(
                 'View all',
                 style: TextStyle(
                   fontSize: 16,
-                  decorationColor: Theme.of(context).colorScheme.primary,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: scheme.primary,
                 ),
               ),
             ),
@@ -72,13 +73,14 @@ class ServicesSection extends StatelessWidget {
           future: ServicesApi.I.fetchServices(),
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
-              return const Center(child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: SizedBox(height: 32, width: 32, child: CircularProgressIndicator(strokeWidth: 2)),
-              ));
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: SizedBox(height: 32, width: 32, child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+              );
             }
             if (snap.hasError || !snap.hasData || snap.data!.isEmpty) {
-              // In case of error, show nothing to avoid stale dummy content
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
@@ -88,7 +90,6 @@ class ServicesSection extends StatelessWidget {
               );
             }
             final items = snap.data!;
-            // Show up to 6 services on the home section
             final display = items.take(6).toList();
             return GridView.builder(
               itemCount: display.length,
@@ -98,19 +99,20 @@ class ServicesSection extends StatelessWidget {
                 crossAxisCount: 3,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 0.85,
+                childAspectRatio: 0.82,
               ),
               itemBuilder: (context, index) {
                 final s = display[index];
                 final asset = _assetForService(s.id);
+                // Price hint removed per product request to avoid focus on pricing here.
+                // final price = s.basePrice; // cents
                 return InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () {
-                    // Navigate to All Services and ask it to open the request sheet for this service
                     Navigator.pushNamed(
                       context,
                       '/all-services',
-                      arguments: { 'serviceTypeId': s.id },
+                      arguments: {'serviceTypeId': s.id},
                     );
                   },
                   child: Column(
@@ -119,28 +121,50 @@ class ServicesSection extends StatelessWidget {
                       Expanded(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: asset != null
-                              ? Image.asset(asset, fit: BoxFit.cover)
-                              : Container(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              if (asset != null)
+                                Image.asset(asset, fit: BoxFit.cover)
+                              else
+                                Container(
                                   color: Theme.of(context).colorScheme.surfaceVariant,
                                   alignment: Alignment.center,
                                   child: Text(
                                     s.displayName.isNotEmpty ? s.displayName[0] : '?',
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                 ),
+                              // gradient overlay for readability
+                              Positioned.fill(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.black.withOpacity(0.05),
+                                        Colors.black.withOpacity(0.35),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Title overlay removed to avoid duplicate labels; keep caption below only.
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 6),
+                      // subtle caption to keep grid aligned; title already on tile
                       Text(
                         s.displayName,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontSize: 16),
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontSize: 14,
+                            ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

@@ -343,19 +343,13 @@ class _ClientPaymentMethodsScreenState extends State<ClientPaymentMethodsScreen>
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
 
             if (_items.isNotEmpty)
-              Card(
-                elevation: 0,
-                color: cs.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: cs.outlineVariant),
-                ),
-                child: Column(
-                  children: [
-                    for (int i = 0; i < _items.length; i++)
-                      _PaymentMethodTile(method: _items[i], showDivider: i < _items.length - 1),
-                  ],
-                ),
+              Column(
+                children: [
+                  for (int i = 0; i < _items.length; i++) ...[
+                    _PaymentMethodTile(method: _items[i], showDivider: i < _items.length - 1),
+                    const SizedBox(height: 16),
+                  ]
+                ],
               )
             else if (!_loading)
               Padding(
@@ -394,6 +388,7 @@ class _ClientPaymentMethodsScreenState extends State<ClientPaymentMethodsScreen>
   }
 }
 
+
 class _PaymentMethodTile extends StatelessWidget {
   const _PaymentMethodTile({required this.method, this.showDivider = false});
   final ClientPaymentMethod method;
@@ -401,31 +396,172 @@ class _PaymentMethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
-    final title = method.brand != null && method.last4 != null
-        ? '${method.brand} •••• ${method.last4}'
-        : 'Saved authorization';
-    final subtitle = [
-      if (method.expMonth != null && method.expYear != null) 'Exp ${method.expMonth}/${method.expYear}',
-      if (method.bank != null) method.bank,
-      if (method.email != null) method.email,
-    ].whereType<String>().where((s) => s.trim().isNotEmpty).join(' • ');
+    // Values displayed on the card face
+    final brand = (method.brand?.isNotEmpty == true) ? method.brand! : 'Card';
+    final last4 = method.last4 ?? '••••';
+    final exp = _formatExp(method.expMonth, method.expYear);
 
     return Column(
       children: [
-        ListTile(
-          leading: const Icon(Icons.credit_card),
-          title: Text(title, style: text.titleMedium),
-          subtitle: subtitle.isNotEmpty ? Text(subtitle, style: text.bodySmall) : null,
-          trailing: TextButton(
-            onPressed: () {},
-            child: const Text('Default'), // Future: set as default
+        // Realistic credit card widget with the app's green theme
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: cs.shadow.withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: AspectRatio(
+              aspectRatio: 1.58,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: _greenGradient(cs),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -40,
+                      top: -40,
+                      child: Container(
+                        width: 160,
+                        height: 160,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: cs.onPrimary.withValues(alpha: 0.06),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              _BrandPill(brand: brand, color: cs.onPrimary),
+                              const Spacer(),
+                              Icon(Icons.nfc, color: cs.onPrimary.withValues(alpha: 0.9), size: 20),
+                            ],
+                          ),
+                          const Spacer(),
+                          Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: cs.onPrimary.withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: cs.onPrimary.withValues(alpha: 0.28), width: 1),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _maskedNumber(last4),
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: cs.onPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              if (exp.isNotEmpty)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('VALID THRU', style: theme.textTheme.labelSmall?.copyWith(color: cs.onPrimary.withValues(alpha: 0.8), letterSpacing: 1.1)),
+                                    const SizedBox(height: 2),
+                                    Text(exp, style: theme.textTheme.bodyMedium?.copyWith(color: cs.onPrimary, fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              const Spacer(),
+                              if (method.reusable)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: cs.onPrimary.withValues(alpha: 0.14),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: cs.onPrimary.withValues(alpha: 0.22)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.check_circle, size: 16, color: cs.onPrimary),
+                                      const SizedBox(width: 6),
+                                      Text('Reusable', style: theme.textTheme.labelSmall?.copyWith(color: cs.onPrimary, fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-        if (showDivider) Divider(height: 1, color: cs.outlineVariant),
+        if (showDivider) const SizedBox(height: 0), // spacing handled above
       ],
+    );
+  }
+
+  // Helpers (kept private to this screen)
+  static String _formatExp(String? m, String? y) {
+    final mm = m?.trim();
+    final yy = y?.trim();
+    if (mm == null || mm.isEmpty || yy == null || yy.isEmpty) return '';
+    final mm2 = mm.padLeft(2, '0');
+    final yy2 = yy.length == 4 ? yy.substring(2) : yy.padLeft(2, '0');
+    return '$mm2/$yy2';
+  }
+
+  static String _maskedNumber(String last4) {
+    final l4 = last4.padLeft(4, '•');
+    return '••••  ••••  ••••  $l4';
+  }
+
+  static Gradient _greenGradient(ColorScheme cs) {
+    final c1 = cs.primary.withValues(alpha: 0.98);
+    final c2 = cs.primaryContainer.withValues(alpha: 0.90);
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [c1, c2],
+    );
+  }
+}
+
+class _BrandPill extends StatelessWidget {
+  const _BrandPill({required this.brand, required this.color});
+  final String brand;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(brand.toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w700, letterSpacing: 1.1)),
     );
   }
 }
