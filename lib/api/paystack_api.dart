@@ -93,7 +93,7 @@ class PaystackApi {
       }), maxRetries: retries);
       final data = (res.data is Map<String, dynamic>) ? res.data as Map<String, dynamic> : <String, dynamic>{};
       return PaystackAccountSnapshot.fromJson(data);
-    } on DioException catch (e) {
+    } on DioException {
       // If not linked, backend should return 404 with reason not_linked per spec.
       rethrow;
     }
@@ -252,7 +252,7 @@ class PaystackApi {
         ? callbackUrl
         : 'serveme://paystack-return'; // Default deep link for return
 
-    Future<ClientCardLinkInit> _attempt(String path, Map<String, dynamic> data) async {
+    Future<ClientCardLinkInit> attempt(String path, Map<String, dynamic> data) async {
       final res = await _retry(() => _dio
           .post(_n(path), data: data)
           .timeout(timeout, onTimeout: () {
@@ -272,7 +272,7 @@ class PaystackApi {
       'callbackUrl': cb,
     };
     try {
-      return await _attempt('/api/v1/clients/$uid/paystack/link-card/init', fullPayload);
+      return await attempt('/api/v1/clients/$uid/paystack/link-card/init', fullPayload);
     } on DioException catch (e) {
       final code = e.response?.statusCode ?? 0;
       if (!(code == 400 || code == 404 || code == 422)) rethrow;
@@ -285,7 +285,7 @@ class PaystackApi {
       'callbackUrl': cb,
     };
     try {
-      return await _attempt('/api/v1/clients/$uid/paystack/link-card/init', minimalPayload);
+      return await attempt('/api/v1/clients/$uid/paystack/link-card/init', minimalPayload);
     } on DioException catch (e) {
       final code = e.response?.statusCode ?? 0;
       if (!(code == 400 || code == 404 || code == 422)) rethrow;
@@ -294,7 +294,7 @@ class PaystackApi {
 
     // 3) Legacy path used in earlier iterations
     try {
-      return await _attempt('/api/v1/payments/card-link/init', minimalPayload);
+      return await attempt('/api/v1/payments/card-link/init', minimalPayload);
     } on DioException {
       // Propagate last error to caller for user feedback
       rethrow;

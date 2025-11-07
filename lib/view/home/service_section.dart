@@ -128,7 +128,7 @@ class ServicesSection extends StatelessWidget {
                                 Image.asset(asset, fit: BoxFit.cover)
                               else
                                 Container(
-                                  color: Theme.of(context).colorScheme.surfaceVariant,
+                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                   alignment: Alignment.center,
                                   child: Text(
                                     s.displayName.isNotEmpty ? s.displayName[0] : '?',

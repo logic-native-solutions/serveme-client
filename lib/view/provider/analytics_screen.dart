@@ -231,7 +231,7 @@ class ProviderAnalyticsScreen extends StatelessWidget {
                           ],
                         ),
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               ),

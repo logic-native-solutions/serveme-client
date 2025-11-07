@@ -241,14 +241,14 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                           const Row(
                             children: [Flexible(child: SearchCategory())],
                           ),
-                          const SizedBox(height: 15),
+                          const SizedBox(height: 16),
                           const AdvertSection(),
                           const SizedBox(height: 16),
                           // Ongoing request is more useful than separate live-tracking; keep only this per product request.
                           const OngoingRequestCard(),
-                          const SizedBox(height: 12),
+                          // const SizedBox(height: 12),
                           const UpcomingBookingsSection(),
-                          const SizedBox(height: 16),
+                          // const SizedBox(height: 16),
                           const ServicesSection(),
                           const SizedBox(height: 16),
                           // Recommended removed to avoid repetition and reduce cognitive load.

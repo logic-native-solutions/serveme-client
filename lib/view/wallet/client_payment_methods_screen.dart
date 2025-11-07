@@ -306,7 +306,7 @@ class _ClientPaymentMethodsScreenState extends State<ClientPaymentMethodsScreen>
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: cs.surfaceVariant,
+                  color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: cs.outlineVariant),
                 ),

@@ -27,10 +27,10 @@ class _WalletScreenState extends State<_WalletScreen> {
   // Reload ticker to refresh the cards list FutureBuilder when actions complete
   int _reloadTick = 0;
   final PageController _cardsCtrl = PageController();
-  int _cardIndex = 0;
-  _TxFilter _filter = _TxFilter.all;
+  final int _cardIndex = 0;
+  final _TxFilter _filter = _TxFilter.all;
 
-  bool _autoTopUp = false;
+  final bool _autoTopUp = false;
 
   // Mock cards & transactions — wire to your store/API later
   final List<_WalletCard> _cards = const [
@@ -228,7 +228,7 @@ class _ClientCardsStackState extends State<_ClientCardsStack> {
                 style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-            ...items.map((m) => _ClientMiniCard(method: m)).toList(),
+            ...items.map((m) => _ClientMiniCard(method: m)),
           ],
         );
       },
@@ -549,7 +549,7 @@ class _CardListTile extends StatelessWidget {
 }
 
 class _QuickAction extends StatelessWidget {
-  const _QuickAction({required this.icon, required this.label, this.onTap});
+  const _QuickAction({required this.icon, required this.label});
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -789,7 +789,6 @@ class _EmptyList extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
-    this.cta,
   });
 
   final IconData icon;

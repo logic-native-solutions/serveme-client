@@ -64,7 +64,7 @@ class _UpcomingBookingsSectionState extends State<UpcomingBookingsSection> {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text('Upcoming Bookings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
         ),
-        ..._upcoming.map((j) => _UpcomingCard(job: j)).toList(),
+        ..._upcoming.map((j) => _UpcomingCard(job: j)),
       ],
     );
   }
@@ -135,7 +135,7 @@ class _UpcomingCard extends StatelessWidget {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceVariant,
+                    color: theme.colorScheme.surfaceContainerHighest,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
@@ -153,7 +153,7 @@ class _UpcomingCard extends StatelessWidget {
     // In absence of a scheduled time field, derive from acceptedAt/createdAt.
     final dt = j.acceptedAt ?? j.createdAt ?? DateTime.now();
     final w = _weekday(dt.weekday);
-    final hm = _pad(dt.hour) + ':' + _pad(dt.minute);
+    final hm = '${_pad(dt.hour)}:${_pad(dt.minute)}';
     final now = DateTime.now();
     final tomorrow = DateTime(now.year, now.month, now.day + 1);
     final isTomorrow = dt.year == tomorrow.year && dt.month == tomorrow.month && dt.day == tomorrow.day;
@@ -667,7 +667,7 @@ class _EducationCard extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: cs.primaryContainer.withOpacity(0.28),
+              color: cs.primaryContainer.withValues(alpha: .28),
               borderRadius: BorderRadius.circular(14),
             ),
             clipBehavior: Clip.antiAlias,

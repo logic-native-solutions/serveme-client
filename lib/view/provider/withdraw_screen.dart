@@ -160,7 +160,7 @@ class _WithdrawFundsScreenState extends State<WithdrawFundsScreen> {
                     ],
                     Text('Current Balance', style: text.titleLarge?.copyWith(fontFamily: 'AnonymousPro', fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
                     const SizedBox(height: 8),
-                    Text('${_currency} $availableMajor', style: text.displaySmall?.copyWith(fontFamily: 'AnonymousPro', fontWeight: FontWeight.w700)),
+                    Text('$_currency $availableMajor', style: text.displaySmall?.copyWith(fontFamily: 'AnonymousPro', fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
                     if (_account?.balances.note != null && _account!.balances.note!.isNotEmpty)
                       Text(_account!.balances.note!, style: text.bodySmall?.copyWith(color: cs.onSurfaceVariant)),

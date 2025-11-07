@@ -1,4 +1,5 @@
 /// KYC Controller — uses Arya via your backend, camera-only capture.
+library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';

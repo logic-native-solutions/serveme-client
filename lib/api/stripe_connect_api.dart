@@ -105,7 +105,7 @@ class StripeConnectApi {
     final balances = data['balances'] as Map<String, dynamic>? ?? const {};
     final availableList = (balances['available'] as List?) ?? const [];
     final pendingList = (balances['pending'] as List?) ?? const [];
-    List<StripeBalanceAmount> _parseAmounts(List raw) => raw
+    List<StripeBalanceAmount> parseAmounts(List raw) => raw
         .whereType<Map>()
         .map((m) => StripeBalanceAmount(
               amount: (m['amount'] as num?)?.toInt() ?? 0,
@@ -113,8 +113,8 @@ class StripeConnectApi {
             ))
         .toList(growable: false);
 
-    final available = _parseAmounts(availableList);
-    final pending = _parseAmounts(pendingList);
+    final available = parseAmounts(availableList);
+    final pending = parseAmounts(pendingList);
 
     // Parse transactions (up to 20)
     final txnsRaw = (data['transactions'] as List?) ?? const [];

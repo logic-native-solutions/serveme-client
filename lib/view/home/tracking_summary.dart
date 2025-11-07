@@ -108,6 +108,6 @@ class _TrackingSummaryState extends State<TrackingSummary> {
     final h = d.inHours;
     final m = d.inMinutes % 60;
     if (h > 0) return '${h}h ${m}m';
-    return '${m} mins';
+    return '$m mins';
   }
 }

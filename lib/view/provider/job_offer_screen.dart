@@ -84,8 +84,9 @@ class _ProviderJobOfferScreenState extends State<ProviderJobOfferScreen> {
       final msg = e.toString();
       String human = 'Failed to accept';
       // Backend contract per documentation.
-      if (msg.contains('409') && msg.contains('expired')) human = 'Offer expired';
-      else if (msg.contains('409') && msg.contains('already_taken')) human = 'Job already taken';
+      if (msg.contains('409') && msg.contains('expired')) {
+        human = 'Offer expired';
+      } else if (msg.contains('409') && msg.contains('already_taken')) human = 'Job already taken';
       else if (msg.contains('403') && msg.contains('not_offered')) human = 'This offer is not available to you';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(human)));
       setState(() { _error = human; });

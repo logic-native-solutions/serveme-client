@@ -418,8 +418,7 @@ class _ServicesScreenState extends State<AllServicesScreen> {
                                   if (estimate != null && mounted) {
                                     final total = (estimate['total'] ?? subtotal) as int;
                                     final fees = (estimate['fees'] ?? 0) as int;
-                                    final msg = 'You will be charged ${(total/100).toStringAsFixed(2)} $currency' +
-                                        (fees > 0 ? ' (includes ${(fees/100).toStringAsFixed(2)} $currency fees).' : '.');
+                                    final msg = 'You will be charged ${(total/100).toStringAsFixed(2)} $currency${fees > 0 ? ' (includes ${(fees/100).toStringAsFixed(2)} $currency fees).' : '.'}';
                                     proceed = await showDialog<bool>(
                                           context: context,
                                           builder: (dCtx) => AlertDialog(
@@ -1020,7 +1019,7 @@ class _ServiceCardState extends State<_ServiceCard> {
                           )
                         else
                           Container(
-                            color: theme.colorScheme.surfaceVariant,
+                            color: theme.colorScheme.surfaceContainerHighest,
                             alignment: Alignment.center,
                             child: Icon(
                               widget.service.icon,

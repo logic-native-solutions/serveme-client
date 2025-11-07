@@ -1,5 +1,6 @@
 /// KYC (Know Your Customer) — Models & simple types.
 /// These are UI-agnostic and safe to reuse in other layers.
+library;
 
 import 'dart:typed_data';
 

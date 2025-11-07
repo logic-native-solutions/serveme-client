@@ -133,7 +133,9 @@ class RegisterUserService {
           .timeout(_timeout);
 
       final plainBody = res.body;
+      print('RESPONSE [$url]: ${res.statusCode} $plainBody');
       final parsed = _tryParseJson(plainBody);
+      print('PARSED RESPONSE: $parsed');
       // Fast-path: some backends return raw-text duplicates instead of JSON.
       final duplicate = _mapDuplicateFromPlainBody(plainBody);
       if (duplicate != null) {
@@ -153,6 +155,15 @@ class RegisterUserService {
       switch (res.statusCode) {
         case 400:
         case 422:
+          if (parsed?['details'] is List) {
+            final List details = parsed!['details'];
+            final Map<String, String> fieldErrors = {
+              for (final d in details)
+                if (d is Map && d['field'] != null && d['message'] != null)
+                  d['field']: d['message']
+            };
+            return RegisterResultModel.fieldErrors(fieldErrors);
+          }
           // Expecting field-level errors as a JSON object.
           return RegisterResultModel.fieldErrors(parsed);
         case 409:

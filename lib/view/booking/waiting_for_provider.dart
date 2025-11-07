@@ -94,7 +94,7 @@ class _WaitingForProviderScreenState extends State<WaitingForProviderScreen> {
             if (job != null) _StatusBlock(job: job),
             const SizedBox(height: 12),
             if (job?.fanOutCount != null)
-              Text('Notified ${job!.fanOutCount} provider${job!.fanOutCount == 1 ? '' : 's'} nearby',
+              Text('Notified ${job!.fanOutCount} provider${job.fanOutCount == 1 ? '' : 's'} nearby',
                   style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
           ],
         ),

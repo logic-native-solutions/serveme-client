@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:client/api/stripe_connect_api.dart';
 import 'package:client/api/paystack_api.dart';
@@ -216,7 +215,7 @@ class _ProviderWalletScreenState extends State<ProviderWalletScreen> {
               _BankLikeBalanceCard(
                 // Show server-provided currency + available amount (minor units → major)
                 balanceLabel: _psAccount != null
-                    ? '${(_psAccount!.balances.currency).toUpperCase()} ' + (_psAccount!.balances.available / 100.0).toStringAsFixed(2)
+                    ? '${(_psAccount!.balances.currency).toUpperCase()} ${(_psAccount!.balances.available / 100.0).toStringAsFixed(2)}'
                     : null,
                 balance: _psAccount != null ? _psAccount!.balances.available / 100.0 : 0.0,
                 accountTitle: _providerAccountTitle(),

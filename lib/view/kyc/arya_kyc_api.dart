@@ -1,5 +1,6 @@
 /// Thin client for YOUR backend which calls Arya.
 /// Matches controllers in /api/documents/rsa-id/*
+library;
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 

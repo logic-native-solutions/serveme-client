@@ -26,7 +26,7 @@ String _shortenLocation(String? s) {
   final parts = text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
   final preferred = parts.length >= 2 ? '${parts[0]}, ${parts[1]}' : text;
   // Final safety: ellipsize if still too long
-  return preferred.length > 36 ? preferred.substring(0, 35) + '…' : preferred;
+  return preferred.length > 36 ? '${preferred.substring(0, 35)}…' : preferred;
 }
 
 

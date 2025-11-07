@@ -9,7 +9,6 @@ import 'package:client/view/home/home_shell.dart';
 import 'package:client/view/tracking/tracking_map_screen.dart';
 import 'package:client/view/message/message_screen.dart';
 import 'package:client/view/otp/otp.dart';
-import 'package:client/view/profile/profile_screen.dart';
 import 'package:client/view/booking/booking_screen.dart';
 import 'package:client/view/booking/waiting_for_provider.dart';
 import 'package:client/view/wallet/wallet_screen.dart';

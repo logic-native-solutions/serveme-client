@@ -118,7 +118,7 @@ class _ProviderPayoutsScreenState extends State<ProviderPayoutsScreen> {
               Text(
                 _status != null
                     ? (_status!.linked
-                        ? 'Linked' + (_status!.accountId != null ? ' (Subaccount: ${_status!.accountId})' : '')
+                        ? 'Linked${_status!.accountId != null ? ' (Subaccount: ${_status!.accountId})' : ''}'
                         : 'Not linked')
                     : (_loading ? 'Loading…' : (_error ?? '—')),
                 style: text.titleMedium?.copyWith(

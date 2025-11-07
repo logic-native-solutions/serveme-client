@@ -925,7 +925,7 @@ class _DeclinedDialog extends StatelessWidget {
             Text('Job Declined', style: text.displaySmall?.copyWith(fontFamily: 'AnonymousPro', fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             Text(
-              'You have successfully declined the job. The client has been notified.' + (reason == null ? '' : '\nReason: ${reason!}'),
+              'You have successfully declined the job. The client has been notified.${reason == null ? '' : '\nReason: ${reason!}'}',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),

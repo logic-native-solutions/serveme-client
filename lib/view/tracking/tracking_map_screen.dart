@@ -178,7 +178,7 @@ class _TrackingMapScreenState extends State<TrackingMapScreen> {
     final h = d.inHours;
     final m = d.inMinutes % 60;
     if (h > 0) return '${h}h ${m}m';
-    return '${m} mins';
+    return '$m mins';
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:client/view/home/current_user.dart';
 import 'package:flutter/material.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:phone_numbers_parser/phone_numbers_parser.dart';
@@ -240,6 +241,7 @@ class RegisterController extends ChangeNotifier {
 
     // Run validators first
     final valid = formKey.currentState?.validate() ?? false;
+    final userStore = CurrentUserStore.I;
 
     // Extra safety: ensure non-null for fields not bound to a TextFormField
     String? banner;
@@ -259,6 +261,11 @@ class RegisterController extends ChangeNotifier {
     if (!valid || banner != null) {
       notifyListeners();
       return;
+    }
+
+    // Clear existing user session if any
+    if (userStore.user != null) {
+      try { userStore.clear(); } catch (_) {}
     }
 
     isLoading = true;
@@ -310,33 +317,32 @@ class RegisterController extends ChangeNotifier {
     errors.role = result.role;
     errors.message = result.message;
 
-    if (context.mounted && errors.message != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errors.message!)),
-      );
-    }
-
+    // if (context.mounted && errors.message != null) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(content: Text(errors.message!)),
+    //   );
+    // }
+    formKey.currentState?.validate();
     isLoading = false;
     notifyListeners();
   }
 
+  Future<void> registerWithGoogle() async {
+
+  }
+
+  Future<void> registerWithApple() async {
+
+  }
   // -------------------------------- UI helpers ------------------------------
   List<Widget> socialButtons(BuildContext context) => [
     SocialBox(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Google login tapped')),
-        );
-      },
+      onTap: () => registerWithGoogle(),
       child: Image.asset('assets/images/google.png', height: 26, width: 26),
     ),
     const SizedBox(width: 16),
     SocialBox(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Apple login tapped')),
-        );
-      },
+      onTap: () => registerWithApple(),
       child: const Icon(Icons.apple, size: 26),
     ),
   ];

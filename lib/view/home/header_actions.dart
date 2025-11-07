@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import 'home_screen.dart'; // Assuming kBrandFont is still here, or move it
 import '../profile/profile_screen.dart';
-import 'home_screen.dart';
 
 /// Compact actions shown on the right of the header: notifications and avatar.
 class HeaderActions extends StatelessWidget {
@@ -39,7 +38,9 @@ class HeaderActions extends StatelessWidget {
         IconButton(
           tooltip: 'Notifications',
           onPressed: () => Navigator.of(context).pushNamed('/notifications'),
-          icon: const Icon(Icons.notifications_outlined, size: 26),
+          icon: const Icon(Icons.notifications_rounded, size: 24),
+          padding: const EdgeInsets.all(12), // Ensure 44x44 tap target for accessibility
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
         ),
         const SizedBox(width: 6),
         GestureDetector(

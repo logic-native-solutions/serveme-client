@@ -1,3 +1,4 @@
+import 'package:client/model/booking_model.dart';
 import 'package:flutter/material.dart';
 import 'package:client/api/jobs_api.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,7 +28,7 @@ class _BookingScreenState extends State<_BookingScreen> {
 
   bool _loading = true;
   String? _error;
-  List<_Booking> _bookings = const [];
+  List<Booking> _bookings = const [];
 
   @override
   void initState() {
@@ -61,11 +62,11 @@ class _BookingScreenState extends State<_BookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final _ = Theme.of(context);
+    final cs = Theme.of(context);
     final upcoming = _bookings.where((b) => b.isUpcoming).toList();
     final past = _bookings.where((b) => !b.isUpcoming).toList();
 
-    List<_Booking> applyFilter() {
+    List<Booking> applyFilter() {
       switch (_filter) {
         case _BookingFilter.upcoming:
           return upcoming;
@@ -77,6 +78,43 @@ class _BookingScreenState extends State<_BookingScreen> {
     }
 
     final visible = applyFilter();
+
+    if (visible.isEmpty && !_loading && _error == null) {
+      return Scaffold(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+              child: Text(
+                'Bookings',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_month,
+                        size: 64, color: cs.colorScheme.onSurfaceVariant),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No bookings found.\nAll bookings will appear here.',
+                      textAlign: TextAlign.center,
+                      style: cs.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       body: RefreshIndicator(
@@ -156,7 +194,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-_Booking _mapJobToBooking(Job j) {
+Booking _mapJobToBooking(Job j) {
   final status = (j.status).toLowerCase();
   final upcomingStatuses = {
     'pending','assigned','enroute','arrived','in_progress'
@@ -175,7 +213,7 @@ _Booking _mapJobToBooking(Job j) {
   }
   // Map serviceType -> image asset (fallback generic)
   final img = _imageForServiceType(j.serviceType);
-  return _Booking(
+  return Booking(
     jobId: j.id,
     assignedProviderId: j.assignedProviderId,
     title: j.serviceType, // replace with display label when available
@@ -206,7 +244,7 @@ String _imageForServiceType(String t) {
 
 class _BookingTile extends StatelessWidget {
   const _BookingTile({required this.booking});
-  final _Booking booking;
+  final Booking booking;
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +343,7 @@ class _BookingTile extends StatelessWidget {
     );
   }
 
-  void _openDetails(BuildContext context, _Booking b) {
+  void _openDetails(BuildContext context, Booking b) {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -432,30 +470,4 @@ class _BookingTile extends StatelessWidget {
       },
     );
   }
-}
-
-class _Booking {
-  final String jobId;           // Backend job identifier
-  final String? assignedProviderId; // Null until assigned
-  final String title;
-  final String when;
-  final bool isUpcoming;
-  final String imagePath; // thumbnail from assets
-  final String status;    // e.g., 'Upcoming', 'Completed'
-  final String price;     // e.g., 'R350' or 'R180/hr'
-  final String provider;  // e.g., 'Thabo M.'
-  final double? rating;   // optional rating
-
-  const _Booking({
-    required this.jobId,
-    required this.assignedProviderId,
-    required this.title,
-    required this.when,
-    required this.isUpcoming,
-    required this.imagePath,
-    this.status = '',
-    this.price = '',
-    this.provider = '',
-    this.rating,
-  });
 }

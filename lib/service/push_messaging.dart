@@ -144,7 +144,7 @@ class PushMessaging {
       for (var i = 1; i <= tokenAttempts; i++) {
         try {
           token = await FirebaseMessaging.instance.getToken();
-          if (token != null && token!.isNotEmpty) {
+          if (token != null && token.isNotEmpty) {
             log('FCM token acquired on attempt $i');
             break;
           }
@@ -165,7 +165,7 @@ class PushMessaging {
         }
       }
 
-      if (token == null || token!.isEmpty) {
+      if (token == null || token.isEmpty) {
         if (lastErr != null) {
           log('Failed to get FCM token after retries: $lastErr');
         } else {
@@ -178,8 +178,8 @@ class PushMessaging {
       log('Failed to get FCM token (will still listen for refresh): $e');
     }
 
-    if (token != null && token!.isNotEmpty) {
-      await _uploadToken(token!);
+    if (token != null && token.isNotEmpty) {
+      await _uploadToken(token);
     }
   }
 

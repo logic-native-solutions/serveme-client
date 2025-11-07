@@ -1,14 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:client/view/provider/jobs_screen.dart';
-import 'package:client/view/message/message_screen.dart';
-import 'package:client/view/profile/profile_screen.dart';
 import 'package:client/view/provider/provider_profile_screen.dart';
 import 'package:client/view/provider/wallet_screen.dart';
 import 'package:client/api/stripe_connect_api.dart';
 import 'package:client/api/paystack_api.dart';
 import 'package:client/api/earning_goal_api.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
@@ -332,7 +329,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
                 // Bank name picker: prefer dropdown from GET /providers/paystack/banks; fallback to text field.
                 if (saBanks.isNotEmpty)
                   DropdownButtonFormField<String>(
-                    value: selectedBankName,
+                    initialValue: selectedBankName,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Bank name'),
                     items: saBanks
@@ -355,13 +352,13 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
                 const SizedBox(height: 8),
                 // Display backend-enforced platform commission (read-only)
                 if (commission != null)
-                  Text('Platform fee: ${commission!.toStringAsFixed(0)}%', style: theme.textTheme.bodyMedium)
+                  Text('Platform fee: ${commission.toStringAsFixed(0)}%', style: theme.textTheme.bodyMedium)
                 else
                   Text('Platform fee is set by the platform', style: theme.textTheme.bodyMedium),
                 const SizedBox(height: 8),
                 Text('Optional settings', style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
                 DropdownButtonFormField<String>(
-                  value: schedule,
+                  initialValue: schedule,
                   decoration: const InputDecoration(labelText: 'Settlement schedule'),
                   items: const [
                     DropdownMenuItem(value: 'auto', child: Text('auto')),
@@ -603,9 +600,9 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
     final text = theme.textTheme;
 
     // Derived presentation values
-    final double? _goalMajor = _goal != null ? (_goal!.amount / 100.0) : null;
-    final progress = (_goalMajor != null && _goalMajor > 0)
-        ? (_earnings / _goalMajor).clamp(0.0, 1.0)
+    final double? goalMajor = _goal != null ? (_goal!.amount / 100.0) : null;
+    final progress = (goalMajor != null && goalMajor > 0)
+        ? (_earnings / goalMajor).clamp(0.0, 1.0)
         : 0.0;
 
     return Scaffold(
@@ -742,7 +739,7 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> with 
                     // -------------------------------------------------------------
                     _EarningsCard(
                       earnings: _earnings,
-                      weeklyGoal: _goalMajor,
+                      weeklyGoal: goalMajor,
                       deltaPct: _deltaPct,
                       loadingGoal: _loadingGoal,
                       goalError: _goalError,

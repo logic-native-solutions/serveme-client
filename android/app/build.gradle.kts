@@ -56,6 +56,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             // Ensure Paystack SDK classes are kept in release builds
             isMinifyEnabled = false
+            isShrinkResources = false
             // If you enable minify in the future, keep rules are already provided.
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

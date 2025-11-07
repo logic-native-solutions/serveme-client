@@ -85,7 +85,7 @@ class _HelpScreenState extends State<HelpScreen> {
 
           const SizedBox(height: 16),
           _SectionHeader('FAQs'),
-          ...results.map((f) => _FaqTile(faq: f)).toList(),
+          ...results.map((f) => _FaqTile(faq: f)),
 
           const SizedBox(height: 16),
           _SectionHeader('Recent tickets'),
